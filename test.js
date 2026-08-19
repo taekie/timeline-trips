@@ -18,17 +18,22 @@ const el = new Proxy({}, {
 const ctx = vm.createContext({
   document: {querySelector: () => el, querySelectorAll: () => [], createElement: () => el},
   addEventListener(){}, devicePixelRatio: 1, performance, console, setTimeout,
-  fetch: () => Promise.resolve({json: () => JSON.parse(fs.readFileSync(__dirname + '/geo.json', 'utf8'))}),
+  fetch: (u) => Promise.resolve({json: () => JSON.parse(fs.readFileSync(
+    __dirname + '/' + String(u).split('?')[0], 'utf8'))}),
 });
 vm.runInContext(code, ctx);
 
 (async () => {
   await new Promise(r => setImmediate(r));           // let the geo.json fetch settle
+  // 지역 파일은 지연 로딩이므로 테스트가 명시적으로 받아온다
+  await ctx.ensureRegions(['KR', 'US', 'JP']);
   let n = 0;
   const eq = (got, want, what) => { assert.strictEqual(got, want, `${what}: ${got} != ${want}`); n++; };
 
   // --- place naming -------------------------------------------------------
   const name = (la, lo) => ctx.placeName(la, lo).name;
+  const eval_ = e => vm.runInContext(e, ctx);
+  eval_('HOME_CC = "KR"');
   eq(name(37.50173, 127.01317), '서울특별시 서초구', '서초');
   eq(name(34.76830, 128.40770), '경상남도 통영시', '통영');
   eq(name(36.97640, 127.99550), '충청북도 충주시', '충주');
@@ -41,8 +46,12 @@ vm.runInContext(code, ctx);
   eq(name(35.96850, -79.06840), 'Chapel Hill, 미국', '채플힐 (Durham 아님)');
   // Natural Earth has no Guam at 110m — the city index has to cover it
   eq(name(13.49290, 144.80690).split(', ')[1], '괌', '괌');
-  // a sea point near Korea stays Korean instead of falling through to "대한민국"
+  // 지역 파일이 없는 나라는 도시 인덱스로 대체된다
+  eq(eval_('REG.has("KR") && REG.has("US") && !REG.has("FR")'), true, '방문국 지역 파일만 로딩');
+  // 해상 좌표는 국가 외곽선 밖이라 최근접 도시로 추정하면 엉뚱한 나라가 나온다
   assert.ok(name(37.9716, 128.7656).startsWith('강원도'), '동해 앞바다 → 강원도'); n++;
+  assert.ok(name(36.9411, 126.7987).startsWith('충청남도') ||
+            name(36.9411, 126.7987).startsWith('경기도'), '서해 앞바다 → 북한 아님'); n++;
 
   eq(ctx.shortName('충청남도 천안시 동남구'), '천안시', '라벨: 구 → 시');
   eq(ctx.shortName('Honolulu, 미국'), 'Honolulu', '라벨: 해외는 도시명');

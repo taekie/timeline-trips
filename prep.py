@@ -18,6 +18,8 @@ SRC = {
    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson',
  'world50.json':
    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson',
+ 'admin1.geojson':
+   'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson',
  'countryInfo.txt': 'https://download.geonames.org/export/dump/countryInfo.txt',
  'cities15000.zip': 'https://download.geonames.org/export/dump/cities15000.zip',
 }
@@ -71,7 +73,7 @@ for f in json.load(open('skorea-municipalities-2018-geo.json'))['features']:
     rs = rings(f['geometry'], 0.004, 4)
     # the source writes "전주시완산구" — split the two levels apart
     name = re.sub(r'^(.+시)(.+[구군])$', r'\1 \2', p['name'])
-    if rs: kr.append([name, prov.get(p['code'][:2], ''), rs])
+    if rs: kr.append([(prov.get(p['code'][:2], '') + ' ' + name).strip(), rs])
 
 # --- World: country outlines, Korean names where Natural Earth has them -----
 ko = {}
@@ -79,10 +81,10 @@ world = []
 for f in json.load(open('world.json'))['features']:
     p = f['properties']
     nm = p.get('NAME_KO') or p['NAME']
-    for k in ('ISO_A2_EH','ISO_A2'):
-        if p.get(k) and p[k] != '-99': ko.setdefault(p[k], nm)
+    cc = next((p[k] for k in ('ISO_A2_EH','ISO_A2') if p.get(k) and p[k] != '-99'), '')
+    if cc: ko.setdefault(cc, nm)
     rs = rings(f['geometry'], 0.05, 2)
-    if rs: world.append([nm, p.get('NAME') or '', rs])
+    if rs: world.append([nm, rs, cc])
 
 # 110m has no Guam/Macau/…; borrow Korean names from the 50m table (names only,
 # geometry stays 110m) and fall back to GeoNames English for anything still missing
@@ -112,7 +114,30 @@ import math
 cities = [[r[0], ko.get(r[1], r[1]), r[2], r[3], round(math.log10(max(r[4],1000))*10)]
           for r in sorted(sel.values(), key=lambda x: -x[4])]
 
-data = {'kr': kr, 'world': world, 'cities': cities}
+# --- Region files: one per country, fetched only when a trip lands there ----
+# KR gets the 시·군·구 boundaries above; everywhere else gets Natural Earth
+# admin-1 (state/province). Same shape either way: [displayName, rings].
+OUT = os.path.join('..', 'regions')
+os.makedirs(OUT, exist_ok=True)
+for f in os.listdir(OUT): os.remove(os.path.join(OUT, f))
+
+regions = {'KR': kr}
+for f in json.load(open('admin1.geojson'))['features']:
+    p = f['properties']
+    cc = p.get('iso_a2')
+    if not re.fullmatch(r'[A-Z]{2}', cc or '') or cc == 'KR': continue
+    rs = rings(f['geometry'], 0.02, 3)
+    if rs: regions.setdefault(cc, []).append([p.get('name_ko') or p.get('name') or '', rs])
+
+manifest = {}
+for cc, feats in sorted(regions.items()):
+    blob = json.dumps(feats, ensure_ascii=False, separators=(',',':'))
+    open(os.path.join(OUT, cc + '.json'), 'w').write(blob)
+    manifest[cc] = len(blob.encode())
+
+data = {'world': world, 'cities': cities, 'regions': manifest}
 s = json.dumps(data, ensure_ascii=False, separators=(',',':'))
 open(os.path.join('..','geo.json'),'w').write(s)
-print(f'kr {len(kr)}  world {len(world)}  cities {len(cities)}  {len(s.encode())/1e6:.2f}MB')
+print(f'core   world {len(world)}  cities {len(cities)}  {len(s.encode())/1e6:.2f}MB')
+print(f'regions {len(manifest)}개국  {sum(manifest.values())/1e6:.2f}MB  '
+      f'(KR {manifest["KR"]//1024}KB, US {manifest.get("US",0)//1024}KB, JP {manifest.get("JP",0)//1024}KB)')

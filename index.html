@@ -48,6 +48,9 @@ th{text-align:left;font-size:12px;color:var(--ink2);font-weight:600;
   padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 tr.hl td{background:var(--blue-l)}
+tr.yr td{background:var(--bg2);font-weight:700;font-size:13px;
+  padding:7px 10px;letter-spacing:.01em;position:sticky;top:0}
+tr.yr span{font-weight:400;color:var(--ink2);margin-left:8px;font-size:12px}
 td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .dest{font-weight:600}
 .via{color:var(--ink2);font-size:12.5px}
@@ -132,15 +135,30 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 'use strict';
 const $=s=>document.querySelector(s), D=Math.PI/180, R=6371, DAY=864e5;
 let GEO=null, ST=null, MODE='kr';
+const REG=new Map();        // cc -> 지역 경계 (방문한 나라만 지연 로딩)
+let HOME_CC='';             // 거주국은 지명에서 국가명을 뗀다
 
-fetch('geo.json?v=2').then(r=>r.json()).then(g=>{
-  GEO=g;
-  for(const grp of [g.kr,g.world]) for(const f of grp){
-    f[3]=f[2].map(r=>{let a=1/0,b=1/0,c=-1/0,d=-1/0;
-      for(let i=0;i<r.length;i+=2){if(r[i]<a)a=r[i];if(r[i]>c)c=r[i];if(r[i+1]<b)b=r[i+1];if(r[i+1]>d)d=r[i+1];}
-      return [a,b,c,d];});
-  }
-}).catch(()=>msg('경계 데이터(geo.json)를 불러오지 못했습니다.',1));
+/* 모든 feature는 [표시명, rings, ...] 꼴이고 bbox는 index 3에 붙인다 */
+function addBBox(feats){
+  for(const f of feats) f[3]=f[1].map(r=>{let a=1/0,b=1/0,c=-1/0,d=-1/0;
+    for(let i=0;i<r.length;i+=2){if(r[i]<a)a=r[i];if(r[i]>c)c=r[i];if(r[i+1]<b)b=r[i+1];if(r[i+1]>d)d=r[i+1];}
+    return [a,b,c,d];});
+  return feats;
+}
+fetch('geo.json?v=3').then(r=>r.json()).then(g=>{GEO=g; addBBox(g.world);})
+  .catch(()=>msg('경계 데이터(geo.json)를 불러오지 못했습니다.',1));
+
+/* 좌표가 떨어진 나라의 지역 파일만 받아온다. 한 번 받으면 캐시된다. */
+async function ensureRegions(ccs){
+  const want=[...ccs].filter(c=>c&&!REG.has(c)&&GEO.regions[c]);
+  if(!want.length) return;
+  const kb=Math.round(want.reduce((a,c)=>a+GEO.regions[c],0)/1024);
+  msg(`${want.join(', ')} 지역 경계 ${kb}KB 받는 중…`);
+  await Promise.all(want.map(cc=>
+    fetch(`regions/${cc}.json?v=3`).then(r=>r.json())
+      .then(f=>REG.set(cc,addBBox(f)))
+      .catch(()=>REG.set(cc,[]))));       // 없으면 도시 인덱스로 대체된다
+}
 
 /* ---------- geo helpers ---------- */
 function hav(a,b){const p1=a[0]*D,p2=b[0]*D,dp=p2-p1,dl=(b[1]-a[1])*D;
@@ -157,16 +175,21 @@ function inRing(x,y,r){let c=false;
     if((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) c=!c;
   } return c;}
 function hitPoly(grp,lat,lon){
-  for(const f of grp) for(let k=0;k<f[2].length;k++){
+  for(const f of grp) for(let k=0;k<f[1].length;k++){
     const b=f[3][k];
-    if(lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3]&&inRing(lon,lat,f[2][k])) return f;
+    if(lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3]&&inRing(lon,lat,f[1][k])) return f;
   } return null;}
-function nearestKr(lat,lon){
-  let best=[1/0,null], cs=Math.cos(lat*D);
-  for(const f of GEO.kr) for(const r of f[2]) for(let i=0;i<r.length;i+=2){
-    const dx=(r[i]-lon)*cs, dy=r[i+1]-lat, d=dx*dx+dy*dy;
-    if(d<best[0]) best=[d,f];
-  } return [best[1], Math.sqrt(best[0])*111];}
+/* 바다·국경 밖으로 떨어진 점을 가장 가까운 지역에 붙인다. cc를 주면 그 나라만,
+   생략하면 받아둔 모든 나라를 훑는다. */
+function nearestRegion(lat,lon,cc){
+  let best=[1/0,null,''], cs=Math.cos(lat*D);
+  for(const [k,feats] of REG){
+    if(cc&&k!==cc) continue;
+    for(const f of feats) for(const r of f[1]) for(let i=0;i<r.length;i+=2){
+      const dx=(r[i]-lon)*cs, dy=r[i+1]-lat, d=dx*dx+dy*dy;
+      if(d<best[0]) best=[d,f,k];
+    }
+  } return [best[1], Math.sqrt(best[0])*111, best[2]];}
 /* Nearest city, but a small place must be meaningfully closer to beat a big one:
    a 10x smaller population costs it 12km. Without this, "Chuo" (a Tokyo ward)
    outranks Tokyo and "Durham" outranks the Chapel Hill you actually stayed in. */
@@ -180,20 +203,49 @@ function nearestCity(lat,lon){
   }
   return [best[1], best[2]];}
 
-/* place name for a coordinate — polygons first, cities as fallback */
-function placeName(lat,lon){
-  const kr=hitPoly(GEO.kr,lat,lon);
-  if(kr) return {name:(kr[1]?kr[1]+' ':'')+kr[0], abroad:false};
-  const w=hitPoly(GEO.world,lat,lon);
-  if(w && w[1]!=='South Korea'){
-    const [c,d]=nearestCity(lat,lon);
-    return {name:(c&&d<80?c[0]+', ':'')+w[0], abroad:true};
-  }
-  const [f,dk]=nearestKr(lat,lon);
-  if(dk<40) return {name:(f[1]?f[1]+' ':'')+f[0]+(dk>3?' 앞바다':''), abroad:false};
+/* 좌표 -> 국가코드. 이미 받아둔 정밀 경계를 국가 외곽선보다 먼저 본다 —
+   110m 외곽선은 해안을 뭉뚱그려서 통영·여수 같은 곳이 바다로 떨어진다. */
+let KO2CC=null;
+function ccOf(lat,lon){
+  const strict=ccStrict(lat,lon);
+  if(strict) return strict;
+  // 해안·해상 좌표는 국가 외곽선 밖으로 떨어진다. 정밀 경계가 도시 인덱스보다
+  // 훨씬 믿을 만하다 — 서해 한복판을 최근접 도시로 찍으면 북한이 나온다.
+  const [,dr,rc]=nearestRegion(lat,lon);
+  if(rc&&dr<30) return rc;
+  if(!KO2CC) KO2CC=new Map(GEO.world.map(x=>[x[0],x[2]]));
   const [c,d]=nearestCity(lat,lon);
-  if(c&&d<250) return {name:c[0]+', '+c[1]+(d>40?' 인근':''), abroad:true};
-  return {name:lat.toFixed(2)+', '+lon.toFixed(2), abroad:true};
+  return c&&d<120?(KO2CC.get(c[1])||''):'';
+}
+/* 어느 나라 파일을 받을지 고를 때는 확실한 것만 — 추측으로 받으면 헛돈다 */
+function ccStrict(lat,lon){
+  for(const [cc,feats] of REG) if(hitPoly(feats,lat,lon)) return cc;
+  const w=hitPoly(GEO.world,lat,lon);
+  return w?w[2]:'';
+}
+// cc가 빈 문자열이면 ISO 코드 없는 국가(북키프로스 등)에 잘못 매칭된다
+const ccName=cc=>cc?((GEO.world.find(w=>w[2]===cc)||[])[0]||''):'';
+
+/* 좌표 -> 지명. 거주국은 지역 경계로, 해외는 가까운 도시로 부르는 게 자연스럽다. */
+function placeName(lat,lon){
+  const cc=ccOf(lat,lon);
+  const [c,dc]=nearestCity(lat,lon);
+  // 괌·마카오처럼 110m 외곽선에 없는 속령은 도시 인덱스가 국가명을 들고 있다
+  const country=ccName(cc)||(c&&dc<120?c[1]:'');
+  const abroad=cc?cc!==HOME_CC:!!country;
+  const feats=REG.get(cc);
+  let reg=feats?hitPoly(feats,lat,lon):null, sea=false;
+  if(!reg&&feats){const [f,d]=nearestRegion(lat,lon,cc); if(f&&d<40){reg=f; sea=d>3;}}
+  if(!abroad){
+    if(reg) return {name:reg[0]+(sea?' 앞바다':''), abroad:false, cc};   // "경상남도 통영시"
+    if(c&&dc<40) return {name:c[0], abroad:false, cc};
+  }else{
+    if(c&&dc<40) return {name:c[0]+', '+country, abroad:true, cc};       // "Tokyo, 일본"
+    if(reg) return {name:reg[0]+', '+country, abroad:true, cc};          // "나가노현, 일본"
+  }
+  if(country) return {name:country, abroad, cc};
+  if(c&&dc<250) return {name:c[0]+', '+c[1]+(dc>40?' 인근':''), abroad:true, cc};
+  return {name:lat.toFixed(2)+', '+lon.toFixed(2), abroad:true, cc};
 }
 
 /* ---------- parsing ---------- */
@@ -350,7 +402,12 @@ function trips(S,TH){
     if(p&&t.a-p.b<=6&&p.top.length&&t.top.length&&hav(p.top[0],t.top[0])<300) M[M.length-1]=sum(p.a,t.b);
     else M.push(t);
   }
-  for(const t of M){
+  return M;
+}
+
+/* 이름은 해당 국가의 지역 파일이 도착한 뒤에 붙인다 */
+function nameTrips(T){
+  for(const t of T){
     const seen=new Set(); t.places=[];
     for(const c of t.top){
       const pn=placeName(c[0],c[1]);
@@ -359,18 +416,26 @@ function trips(S,TH){
     }
     t.abroad=t.places.length&&t.places[0].abroad;
   }
-  return M;
 }
 
 /* ---------- render ---------- */
 function msg(s,err){$('#status').textContent=s;$('#status').className=err?'err':'';}
 const fmt=d=>dstr(d).replace(/-/g,'.').slice(2);
 
-function render(){
+async function render(){
   const S=ST, TH=+$('#th').value;
   $('#thLbl').textContent=TH;
   const T=trips(S,TH);
   S.trips=T;
+
+  // 국가 외곽선만으로 어디를 갔는지 먼저 알아내고, 그 나라 경계만 받는다
+  const ccs=new Set(S.res.map(r=>ccStrict(r.pos[0],r.pos[1])));
+  HOME_CC=S.res.length?ccStrict(...S.res[S.res.length-1].pos):'';
+  for(const t of T) for(const c of t.top) ccs.add(ccStrict(c[0],c[1]));
+  await ensureRegions(ccs);
+  nameTrips(T);
+  const homeCountry=(GEO.world.find(w=>w[2]===HOME_CC)||[])[0];
+  $('#tabKr').textContent=homeCountry&&HOME_CC!=='KR'?homeCountry:'국내';
 
   const nAbroad=T.filter(t=>t.abroad).length;
   $('#stats').innerHTML=[
@@ -399,16 +464,26 @@ function render(){
     ? '<div class="note">Home 라벨이 없어 심야(03시) 체류 기록으로 집을 추정했습니다.</div>':'');
 
   $('#tripCount').textContent=`${T.length}건`;
-  $('#tbl tbody').innerHTML=T.map((t,i)=>{
+  const rows=[]; let year='';
+  T.forEach((t,i)=>{
+    const y=dstr(t.a).slice(0,4);
+    if(y!==year){
+      year=y;
+      const inYear=T.filter(x=>dstr(x.a).slice(0,4)===y);
+      const nights=inYear.reduce((a,x)=>a+x.nights,0);
+      rows.push(`<tr class="yr"><td colspan="4">${y}
+        <span>${inYear.length}건${nights?' · '+nights+'박':''}</span></td></tr>`);
+    }
     const main=t.places[0]?t.places[0].name:'—';
     const via=t.places.slice(1,3).map(p=>p.name).join(' · ');
-    return `<tr data-i="${i}">
+    rows.push(`<tr data-i="${i}">
       <td>${fmt(t.a)}${t.nights?' ~ '+fmt(t.b):''}</td>
       <td class="r">${t.nights}</td>
       <td class="r">${Math.round(t.km).toLocaleString()}km</td>
       <td><span class="dest">${main}</span>${t.abroad?'<span class="abroad">해외</span>':''}
-        ${via?`<div class="via">${via}</div>`:''}</td></tr>`;
-  }).join('')||'<tr><td colspan="4" style="color:var(--ink2)">기준 거리 내에서 벗어난 일정이 없습니다.</td></tr>';
+        ${via?`<div class="via">${via}</div>`:''}</td></tr>`);
+  });
+  $('#tbl tbody').innerHTML=rows.join('')||'<tr><td colspan="4" style="color:var(--ink2)">기준 거리 내에서 벗어난 일정이 없습니다.</td></tr>';
   draw();
 }
 
@@ -421,11 +496,21 @@ function shortName(n){
 }
 
 /* canvas map */
-const BOUNDS={kr:[124.4,32.9,131.2,38.8], world:[-180,-58,180,84]};
+const BOUNDS={world:[-180,-58,180,84]};
+/* 국내 지도는 거주국이 어디든 집과 그 나라 안 목적지에 맞춰 잡는다 */
+function localBounds(){
+  const pts=[ST.H.at(ST.dayList[ST.dayList.length-1])];
+  for(const t of ST.trips) for(const c of t.top) if(ccOf(c[0],c[1])===HOME_CC) pts.push(c);
+  let l=1/0,b=1/0,r=-1/0,t2=-1/0;
+  for(const p of pts){l=Math.min(l,p[1]);r=Math.max(r,p[1]);b=Math.min(b,p[0]);t2=Math.max(t2,p[0]);}
+  if(!isFinite(l)) return BOUNDS.world;
+  const px=Math.max((r-l)*.18,.6), py=Math.max((t2-b)*.18,.6);
+  return [l-px,b-py,r+px,t2+py];
+}
 let MK=[];
 function draw(){
   const cv=$('#cv'), W=cv.clientWidth||900;
-  const [l,b,r,t]=BOUNDS[MODE];
+  const [l,b,r,t]=MODE==='kr'?localBounds():BOUNDS.world;
   const Hpx=MODE==='kr'?560:Math.round(Math.min(W*0.5,520));
   const dpr=devicePixelRatio||1;
   cv.width=W*dpr; cv.height=Hpx*dpr; cv.style.height=Hpx+'px';
@@ -436,7 +521,7 @@ function draw(){
   const sc=Math.min(W/dw,Hpx/dh), ox=(W-dw*sc)/2, oy=(Hpx-dh*sc)/2;
   const X=lo=>ox+(lo-l)*kx*sc, Y=la=>oy+(t-la)*sc;
 
-  const grp=MODE==='kr'?GEO.kr:GEO.world;
+  const grp=MODE==='kr'?(REG.get(HOME_CC)||[]):GEO.world;
   g.lineWidth=.6; g.strokeStyle='#fff';
   const visited=new Set();
   for(const tp of ST.trips) for(const c of tp.top){
@@ -444,7 +529,7 @@ function draw(){
   }
   for(const f of grp){
     g.fillStyle=visited.has(f)?'#bfdbfe':'#eceff3';
-    for(const ring of f[2]){
+    for(const ring of f[1]){
       g.beginPath(); g.moveTo(X(ring[0]),Y(ring[1]));
       for(let i=2;i<ring.length;i+=2) g.lineTo(X(ring[i]),Y(ring[i+1]));
       g.closePath(); g.fill(); g.stroke();
@@ -510,16 +595,16 @@ function load(f){
   const rd=new FileReader();
   rd.onerror=()=>msg('파일을 읽지 못했습니다.',1);
   rd.onload=()=>{
-    setTimeout(()=>{
+    setTimeout(async()=>{
       try{
         const t0=performance.now();
         ST=analyse(JSON.parse(rd.result));
         $('#th').value=ST.auto;
         $('#out').classList.remove('hide');
+        await render();
         drop.style.padding='18px 20px';
         drop.querySelector('b').textContent='다른 파일 분석하기';
         drop.querySelector('span').textContent=f.name;
-        render();
         msg(`${ST.n.toLocaleString()}개 지점 분석 완료 (${Math.round(performance.now()-t0)}ms) · 기준 거리 ${ST.auto}km 자동 설정`);
       }catch(err){
         msg(err.message==='OLD'
