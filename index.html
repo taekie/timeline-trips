@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>여행 타임라인 — Google Timeline 여행 추출기</title>
+<style>
+:root{
+  --blue:#3b82f6; --blue-d:#2563eb; --blue-l:#dbeafe;
+  --ink:#111827; --ink2:#4b5563; --ink3:#9ca3af;
+  --bg:#ffffff; --bg2:#f8f9fa; --line:#e5e7eb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg2);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','KoddiUD OnGothic',sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+:lang(ko),.ko{font-family:'KoddiUD OnGothic',-apple-system,BlinkMacSystemFont,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:17px;margin:36px 0 12px;letter-spacing:-.01em}
+p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
+.badge{display:inline-block;background:var(--blue-l);color:var(--blue-d);
+  font-size:12px;font-weight:600;padding:3px 9px;border-radius:4px;vertical-align:2px;margin-left:8px}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:18px}
+
+#drop{border:2px dashed var(--line);border-radius:10px;background:var(--bg);
+  padding:44px 20px;text-align:center;cursor:pointer}
+#drop.over{border-color:var(--blue);background:var(--blue-l)}
+#drop b{display:block;font-size:16px;margin-bottom:6px}
+#drop span{color:var(--ink2);font-size:13px}
+#status{margin-top:14px;font-size:13px;color:var(--ink2);min-height:20px}
+#status.err{color:#dc2626}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:8px}
+.stat{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.stat .n{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.stat .l{font-size:12px;color:var(--ink2);margin-top:2px}
+
+.density{display:flex;gap:3px;align-items:flex-end;height:64px;margin-top:4px}
+.density div{flex:1;background:var(--blue);border-radius:2px 2px 0 0;min-height:2px;position:relative}
+.density div.low{background:#fca5a5}
+.dlabels{display:flex;gap:3px;margin-top:5px}
+.dlabels span{flex:1;text-align:center;font-size:10px;color:var(--ink3)}
+.note{font-size:12.5px;color:var(--ink2);margin-top:10px}
+
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--bg)}
+th{text-align:left;font-size:12px;color:var(--ink2);font-weight:600;
+  padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.hl td{background:var(--blue-l)}
+td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dest{font-weight:600}
+.via{color:var(--ink2);font-size:12.5px}
+.abroad{display:inline-block;background:#fef3c7;color:#92400e;font-size:11px;
+  padding:1px 6px;border-radius:3px;margin-left:6px;font-weight:600}
+
+.ctl{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:13px}
+.ctl input[type=range]{width:190px;accent-color:var(--blue)}
+button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--line);
+  background:var(--bg);border-radius:6px;cursor:pointer;color:var(--ink)}
+button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.tabs{display:flex;gap:6px}
+#cv{width:100%;display:block;border-radius:8px;background:var(--bg);border:1px solid var(--line);cursor:crosshair}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;
+  padding:6px 9px;border-radius:5px;display:none;z-index:9;max-width:220px;line-height:1.45}
+.hide{display:none}
+.res{font-size:14px;padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:12px;flex-wrap:wrap}
+.res:last-child{border:0}
+.res b{min-width:190px;font-variant-numeric:tabular-nums;font-weight:600}
+.res span{color:var(--ink2)}
+footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--ink2)}
+code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
+<p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
+모든 계산은 이 브라우저 안에서만 일어나며 서버로 전송되는 데이터는 없습니다.</p>
+
+<div id="drop">
+  <b>location-history.json 을 여기에 끌어다 놓으세요</b>
+  <span>또는 클릭해서 선택 · Google 지도 앱 → 설정 → 위치 기록 → 타임라인 데이터 내보내기</span>
+  <input type="file" id="file" accept=".json,application/json" class="hide">
+</div>
+<div id="status"></div>
+
+<div id="out" class="hide">
+  <div class="stats" id="stats"></div>
+
+  <h2>기록 밀도</h2>
+  <div class="card">
+    <div class="density" id="density"></div>
+    <div class="dlabels" id="dlabels"></div>
+    <div class="note" id="gapnote"></div>
+  </div>
+
+  <h2>거주지 이력</h2>
+  <div class="card" id="homes"></div>
+
+  <h2>여행 지도</h2>
+  <div class="ctl">
+    <div class="tabs">
+      <button id="tabKr" class="on">국내</button>
+      <button id="tabW">세계</button>
+    </div>
+    <label>집에서 <b id="thLbl">80</b>km 이상
+      <input type="range" id="th" min="30" max="300" step="10" value="80"></label>
+    <button id="dl">CSV 내려받기</button>
+  </div>
+  <canvas id="cv"></canvas>
+
+  <h2>여행 목록 <span id="tripCount" style="font-weight:400;color:var(--ink2)"></span></h2>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table id="tbl">
+      <thead><tr><th>기간</th><th class="r">박</th><th class="r">최대거리</th><th>목적지</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <b>읽는 법.</b> 여행 판정 기준은 “그 시점의 집에서 얼마나 멀어졌는가”입니다. 이사를 하면 기준 집도 함께 바뀝니다.
+    기록이 없는 기간의 여행은 나타나지 않으므로 위의 기록 밀도를 함께 확인하세요.
+    지명은 행정구역 경계(국내 시·군·구) 및 도시 좌표(해외)와 대조해 붙였습니다.
+  </footer>
+</div>
+</div>
+<div id="tip"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), D=Math.PI/180, R=6371, DAY=864e5;
+let GEO=null, ST=null, MODE='kr';
+
+fetch('geo.json?v=2').then(r=>r.json()).then(g=>{
+  GEO=g;
+  for(const grp of [g.kr,g.world]) for(const f of grp){
+    f[3]=f[2].map(r=>{let a=1/0,b=1/0,c=-1/0,d=-1/0;
+      for(let i=0;i<r.length;i+=2){if(r[i]<a)a=r[i];if(r[i]>c)c=r[i];if(r[i+1]<b)b=r[i+1];if(r[i+1]>d)d=r[i+1];}
+      return [a,b,c,d];});
+  }
+}).catch(()=>msg('경계 데이터(geo.json)를 불러오지 못했습니다.',1));
+
+/* ---------- geo helpers ---------- */
+function hav(a,b){const p1=a[0]*D,p2=b[0]*D,dp=p2-p1,dl=(b[1]-a[1])*D;
+  const h=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(h)));}
+const NUM=/-?\d+(\.\d+)?/g;
+function geo(s){if(!s)return null;const m=String(s).match(NUM);
+  return m&&m.length>=2?[+m[0],+m[1]]:null;}
+function offOf(iso){const m=/([+-])(\d{2}):?(\d{2})$/.exec(iso);
+  return m?(m[1]==='-'?-1:1)*(+m[2]*60+ +m[3])*6e4:null;}
+function inRing(x,y,r){let c=false;
+  for(let i=0,j=r.length-2;i<r.length;j=i,i+=2){
+    const xi=r[i],yi=r[i+1],xj=r[j],yj=r[j+1];
+    if((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) c=!c;
+  } return c;}
+function hitPoly(grp,lat,lon){
+  for(const f of grp) for(let k=0;k<f[2].length;k++){
+    const b=f[3][k];
+    if(lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3]&&inRing(lon,lat,f[2][k])) return f;
+  } return null;}
+function nearestKr(lat,lon){
+  let best=[1/0,null], cs=Math.cos(lat*D);
+  for(const f of GEO.kr) for(const r of f[2]) for(let i=0;i<r.length;i+=2){
+    const dx=(r[i]-lon)*cs, dy=r[i+1]-lat, d=dx*dx+dy*dy;
+    if(d<best[0]) best=[d,f];
+  } return [best[1], Math.sqrt(best[0])*111];}
+/* Nearest city, but a small place must be meaningfully closer to beat a big one:
+   a 10x smaller population costs it 12km. Without this, "Chuo" (a Tokyo ward)
+   outranks Tokyo and "Durham" outranks the Chapel Hill you actually stayed in. */
+function nearestCity(lat,lon){
+  let best=[1/0,null,0], cs=Math.cos(lat*D);
+  for(const c of GEO.cities){
+    const dx=(c[3]-lon)*cs, dy=c[2]-lat;
+    const km=Math.sqrt(dx*dx+dy*dy)*111;
+    const score=km+Math.max(0,60-c[4])*1.2;
+    if(score<best[0]) best=[score,c,km];
+  }
+  return [best[1], best[2]];}
+
+/* place name for a coordinate — polygons first, cities as fallback */
+function placeName(lat,lon){
+  const kr=hitPoly(GEO.kr,lat,lon);
+  if(kr) return {name:(kr[1]?kr[1]+' ':'')+kr[0], abroad:false};
+  const w=hitPoly(GEO.world,lat,lon);
+  if(w && w[1]!=='South Korea'){
+    const [c,d]=nearestCity(lat,lon);
+    return {name:(c&&d<80?c[0]+', ':'')+w[0], abroad:true};
+  }
+  const [f,dk]=nearestKr(lat,lon);
+  if(dk<40) return {name:(f[1]?f[1]+' ':'')+f[0]+(dk>3?' 앞바다':''), abroad:false};
+  const [c,d]=nearestCity(lat,lon);
+  if(c&&d<250) return {name:c[0]+', '+c[1]+(d>40?' 인근':''), abroad:true};
+  return {name:lat.toFixed(2)+', '+lon.toFixed(2), abroad:true};
+}
+
+/* ---------- parsing ---------- */
+function records(raw){
+  if(Array.isArray(raw)) return raw;
+  if(Array.isArray(raw.semanticSegments)) return raw.semanticSegments;
+  if(raw.timelineObjects) throw new Error('OLD');
+  if(Array.isArray(raw.locations)) throw new Error('RAW');
+  throw new Error('알 수 없는 형식입니다.');
+}
+function extract(recs){
+  const pts=[], homes=[], nights=[];
+  for(const r of recs){
+    const st=Date.parse(r.startTime), en=Date.parse(r.endTime);
+    if(!isFinite(st)) continue;
+    const off=offOf(r.startTime), hrs=Math.min(Math.max(en-st,0)/36e5,16);
+    if(r.visit){
+      const tc=r.visit.topCandidate||{}, p=geo(tc.placeLocation||tc.latLng||tc.placeLatLng);
+      if(!p) continue;
+      pts.push([st,p,off],[isFinite(en)?en:st,p,off]);
+      if(/HOME/i.test(tc.semanticType||'')) homes.push([st,p,hrs,off]);
+      else nights.push([st,en,p,off]);
+    } else if(r.activity){
+      const a=geo(r.activity.start||r.activity.startLatLng), b=geo(r.activity.end||r.activity.endLatLng);
+      if(a) pts.push([st,a,off]);
+      if(b&&isFinite(en)) pts.push([en,b,off]);
+    } else if(r.timelinePath){
+      for(const q of r.timelinePath){
+        const p=geo(q.point); if(!p) continue;
+        const t=q.time?Date.parse(q.time):st+(+q.durationMinutesOffsetFromStartTime||0)*6e4;
+        if(isFinite(t)) pts.push([t,p,off!=null?off:offOf(q.time||'')]);
+      }
+    }
+  }
+  return {pts,homes,nights};
+}
+/* local day index — use the recorded UTC offset, else derive it from longitude */
+const dayOf=(t,p,off)=>Math.floor((t+(off!=null?off:Math.round(p[1]/15)*36e5))/DAY);
+const dstr=d=>new Date(d*DAY).toISOString().slice(0,10);
+const key=p=>p[0].toFixed(2)+','+p[1].toFixed(2);
+
+/* ---------- home detection ---------- */
+function buildHomes(homes,nights){
+  let votes=homes.map(h=>[dayOf(h[0],h[1],h[3]),h[1],h[2]]);
+  let inferred=false;
+  if(votes.length<20){                       // no Home labels — use overnight stays
+    inferred=true;
+    votes=[];
+    for(const[st,en,p,off]of nights){
+      const o=off!=null?off:Math.round(p[1]/15)*36e5;
+      const h0=(st+o)/36e5, h1=(en+o)/36e5;
+      for(let h=Math.floor(h0);h<=Math.ceil(h1);h++)
+        if(((h%24)+24)%24===3){votes.push([dayOf(st,p,off),p,4]);break;}
+    }
+  }
+  if(!votes.length) return null;
+  votes.sort((a,b)=>a[0]-b[0]);
+  const byDay=new Map();
+  for(const v of votes){ if(!byDay.has(v[0])) byDay.set(v[0],[]); byDay.get(v[0]).push(v); }
+  const memo=new Map();
+  function at(d){
+    if(memo.has(d)) return memo.get(d);
+    let win=[];
+    for(let k=d-60;k<=d+60;k++){const b=byDay.get(k); if(b) win=win.concat(b);}
+    if(!win.length){
+      const s=votes.slice().sort((a,b)=>Math.abs(a[0]-d)-Math.abs(b[0]-d));
+      win=s.slice(0,30);
+    }
+    const acc=new Map();
+    for(const v of win) acc.set(key(v[1]),(acc.get(key(v[1]))||0)+v[2]);
+    let bk=null,bw=-1; for(const[k,w]of acc) if(w>bw){bw=w;bk=k;}
+    let la=0,lo=0,tw=0;
+    for(const v of win) if(key(v[1])===bk){la+=v[1][0]*v[2];lo+=v[1][1]*v[2];tw+=v[2];}
+    const h=[la/tw,lo/tw]; memo.set(d,h); return h;
+  }
+  return {at,inferred,first:votes[0][0],last:votes[votes.length-1][0]};
+}
+
+/* ---------- analysis ---------- */
+function analyse(raw){
+  const {pts,homes,nights}=extract(records(raw));
+  if(!pts.length) throw new Error('위치 기록을 찾지 못했습니다.');
+  const H=buildHomes(homes,nights);
+  if(!H) throw new Error('집을 추정할 만한 체류 기록이 없습니다.');
+
+  const days=new Map();
+  for(const[t,p,off]of pts){
+    const d=dayOf(t,p,off);
+    if(!days.has(d)) days.set(d,[]);
+    days.get(d).push(p);
+  }
+  const dayList=[...days.keys()].sort((a,b)=>a-b);
+  const dmax=new Map();
+  for(const d of dayList){
+    const h=H.at(d); let m=0;
+    for(const p of days.get(d)){const v=hav(h,p); if(v>m)m=v;}
+    dmax.set(d,m);
+  }
+  // Residence timeline: sample every 14 days, split when home moves >20km.
+  // A long trip during a sparsely-recorded stretch can masquerade as a move, so
+  // drop anything shorter than 90 days and re-join the neighbours it separated.
+  let res=[];
+  for(let d=H.first;d<=H.last;d+=14){
+    const h=H.at(d);
+    if(!res.length||hav(res[res.length-1].pos,h)>20) res.push({from:d,to:d,pos:h});
+    else {res[res.length-1].to=d; res[res.length-1].pos=h;}
+  }
+  res=res.filter(r=>r.to-r.from>=90);
+  const merged=[];
+  for(const r of res){
+    const p=merged[merged.length-1];
+    if(p&&hav(p.pos,r.pos)<=20) p.to=r.to; else merged.push(r);
+  }
+  res=merged;
+  // adaptive default threshold: 4x the 90th-percentile daily radius
+  const sorted=[...dmax.values()].sort((a,b)=>a-b);
+  const p90=sorted[Math.floor(sorted.length*0.9)]||10;
+  const auto=Math.max(50,Math.min(150,Math.round(p90*4/10)*10));
+
+  const years=new Map();
+  for(const d of dayList){const y=dstr(d).slice(0,4); years.set(y,(years.get(y)||0)+1);}
+  return {days,dayList,dmax,H,res,auto,years,n:pts.length};
+}
+
+function trips(S,TH){
+  const far=S.dayList.filter(d=>S.dmax.get(d)>TH);
+  const groups=[]; let cur=[];
+  for(const d of far){
+    if(cur.length&&d-cur[cur.length-1]>2){groups.push(cur);cur=[];}
+    cur.push(d);
+  }
+  if(cur.length) groups.push(cur);
+
+  const sum=(a,b)=>{
+    const h=S.H.at(a), all=[];
+    for(let d=a;d<=b;d++){const ps=S.days.get(d); if(ps) all.push(...ps);}
+    const fp=all.filter(p=>hav(h,p)>TH);
+    let peak=all[0],mk=0;
+    for(const p of all){const v=hav(h,p); if(v>mk){mk=v;peak=p;}}
+    const cl=new Map();
+    for(const p of fp){const k=p[0].toFixed(1)+','+p[1].toFixed(1);
+      if(!cl.has(k)) cl.set(k,{n:0,la:0,lo:0});
+      const c=cl.get(k); c.n++; c.la+=p[0]; c.lo+=p[1];}
+    const ranked=[...cl.values()].sort((x,y)=>y.n-x.n);
+    // clusters holding <25% of the main one are highway pass-throughs, not destinations
+    const top=ranked.filter((c,i)=>i===0||c.n>=ranked[0].n*.25).slice(0,4)
+      .map(c=>[c.la/c.n,c.lo/c.n]);
+    return {a,b,nights:b-a,km:mk,peak,top,pts:fp.length};
+  };
+  let T=groups.map(g=>sum(g[0],g[g.length-1]));
+  const M=[];
+  for(const t of T){
+    const p=M[M.length-1];
+    if(p&&t.a-p.b<=6&&p.top.length&&t.top.length&&hav(p.top[0],t.top[0])<300) M[M.length-1]=sum(p.a,t.b);
+    else M.push(t);
+  }
+  for(const t of M){
+    const seen=new Set(); t.places=[];
+    for(const c of t.top){
+      const pn=placeName(c[0],c[1]);
+      if(seen.has(pn.name)) continue;
+      seen.add(pn.name); t.places.push(pn);
+    }
+    t.abroad=t.places.length&&t.places[0].abroad;
+  }
+  return M;
+}
+
+/* ---------- render ---------- */
+function msg(s,err){$('#status').textContent=s;$('#status').className=err?'err':'';}
+const fmt=d=>dstr(d).replace(/-/g,'.').slice(2);
+
+function render(){
+  const S=ST, TH=+$('#th').value;
+  $('#thLbl').textContent=TH;
+  const T=trips(S,TH);
+  S.trips=T;
+
+  const nAbroad=T.filter(t=>t.abroad).length;
+  $('#stats').innerHTML=[
+    [S.dayList.length.toLocaleString(),'기록된 날'],
+    [dstr(S.dayList[0]).slice(0,4)+'–'+dstr(S.dayList[S.dayList.length-1]).slice(0,4),'기간'],
+    [S.res.length,'거주지'],
+    [T.length,'여행'],
+    [nAbroad,'해외 여행'],
+  ].map(([n,l])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  const ys=[...S.years.keys()].sort(), mx=Math.max(...S.years.values());
+  $('#density').innerHTML=ys.map(y=>{const v=S.years.get(y);
+    return `<div class="${v<120?'low':''}" style="height:${Math.max(2,v/mx*100)}%" title="${y}년 ${v}일"></div>`;}).join('');
+  $('#dlabels').innerHTML=ys.map(y=>`<span>${y.slice(2)}</span>`).join('');
+  const low=ys.filter(y=>S.years.get(y)<120);
+  $('#gapnote').innerHTML=low.length
+    ? `<b style="color:#dc2626">기록이 희박한 해:</b> ${low.map(y=>y+'년('+S.years.get(y)+'일)').join(', ')} — 이 시기의 여행은 누락되었을 수 있습니다.`
+    : '모든 연도에 충분한 기록이 있습니다.';
+
+  $('#homes').innerHTML=S.res.map(r=>{
+    const pn=placeName(r.pos[0],r.pos[1]), mo=Math.round((r.to-r.from)/30.4);
+    return `<div class="res"><b>${dstr(r.from)} ~ ${dstr(r.to)}</b>
+      <span class="dest" style="color:var(--ink)">${pn.name}</span>
+      <span>${mo}개월 · ${r.pos[0].toFixed(4)}, ${r.pos[1].toFixed(4)}</span></div>`;
+  }).join('')+(S.H.inferred
+    ? '<div class="note">Home 라벨이 없어 심야(03시) 체류 기록으로 집을 추정했습니다.</div>':'');
+
+  $('#tripCount').textContent=`${T.length}건`;
+  $('#tbl tbody').innerHTML=T.map((t,i)=>{
+    const main=t.places[0]?t.places[0].name:'—';
+    const via=t.places.slice(1,3).map(p=>p.name).join(' · ');
+    return `<tr data-i="${i}">
+      <td>${fmt(t.a)}${t.nights?' ~ '+fmt(t.b):''}</td>
+      <td class="r">${t.nights}</td>
+      <td class="r">${Math.round(t.km).toLocaleString()}km</td>
+      <td><span class="dest">${main}</span>${t.abroad?'<span class="abroad">해외</span>':''}
+        ${via?`<div class="via">${via}</div>`:''}</td></tr>`;
+  }).join('')||'<tr><td colspan="4" style="color:var(--ink2)">기준 거리 내에서 벗어난 일정이 없습니다.</td></tr>';
+  draw();
+}
+
+/* "충청남도 천안시 동남구" -> "천안시" — a bare 구 name is not a destination */
+function shortName(n){
+  if(n.includes(', ')) return n.split(', ')[0];   // "Honolulu, 미국" -> "Honolulu"
+  const p=n.split(' ');
+  if(p.length>1&&/구$/.test(p[p.length-1])) p.pop();
+  return p[p.length-1];
+}
+
+/* canvas map */
+const BOUNDS={kr:[124.4,32.9,131.2,38.8], world:[-180,-58,180,84]};
+let MK=[];
+function draw(){
+  const cv=$('#cv'), W=cv.clientWidth||900;
+  const [l,b,r,t]=BOUNDS[MODE];
+  const Hpx=MODE==='kr'?560:Math.round(Math.min(W*0.5,520));
+  const dpr=devicePixelRatio||1;
+  cv.width=W*dpr; cv.height=Hpx*dpr; cv.style.height=Hpx+'px';
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,Hpx);
+  // uniform scale so the map keeps its shape, then centre it in the canvas
+  const kx=Math.cos((b+t)/2*D), dw=(r-l)*kx, dh=t-b;
+  const sc=Math.min(W/dw,Hpx/dh), ox=(W-dw*sc)/2, oy=(Hpx-dh*sc)/2;
+  const X=lo=>ox+(lo-l)*kx*sc, Y=la=>oy+(t-la)*sc;
+
+  const grp=MODE==='kr'?GEO.kr:GEO.world;
+  g.lineWidth=.6; g.strokeStyle='#fff';
+  const visited=new Set();
+  for(const tp of ST.trips) for(const c of tp.top){
+    const f=hitPoly(grp,c[0],c[1]); if(f) visited.add(f);
+  }
+  for(const f of grp){
+    g.fillStyle=visited.has(f)?'#bfdbfe':'#eceff3';
+    for(const ring of f[2]){
+      g.beginPath(); g.moveTo(X(ring[0]),Y(ring[1]));
+      for(let i=2;i<ring.length;i+=2) g.lineTo(X(ring[i]),Y(ring[i+1]));
+      g.closePath(); g.fill(); g.stroke();
+    }
+  }
+  // home marker
+  const h=ST.H.at(ST.dayList[ST.dayList.length-1]);
+  MK=[];
+  for(const tp of ST.trips){
+    const c=tp.top[0]; if(!c) continue;
+    const x=X(c[1]), y=Y(c[0]);
+    if(x<-20||x>W+20||y<-20||y>Hpx+20) continue;
+    MK.push({x,y,t:tp});
+  }
+  g.globalAlpha=.28; g.strokeStyle='#3b82f6'; g.lineWidth=1;
+  const hx=X(h[1]),hy=Y(h[0]);
+  // bow each line perpendicular to itself so the fan reads as separate routes
+  for(const m of MK){
+    const dx=m.x-hx, dy=m.y-hy, k=.15;
+    g.beginPath(); g.moveTo(hx,hy);
+    g.quadraticCurveTo((hx+m.x)/2-dy*k, (hy+m.y)/2+dx*k, m.x, m.y);
+    g.stroke();
+  }
+  g.globalAlpha=1;
+  for(const m of MK){
+    const rad=4+Math.min(m.t.nights,10)*.9;
+    g.beginPath(); g.arc(m.x,m.y,rad,0,7);
+    g.fillStyle='rgba(59,130,246,.75)'; g.fill();
+    g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke();
+  }
+  g.beginPath(); g.arc(hx,hy,5,0,7); g.fillStyle='#111827'; g.fill();
+  g.strokeStyle='#fff'; g.lineWidth=2; g.stroke();
+  g.font='600 11px -apple-system,sans-serif'; g.fillStyle='#111827';
+  g.fillText('집', hx+9, hy+4);
+
+  // labels with naive collision avoidance
+  const boxes=[[hx+6,hy-8,hx+26,hy+8]], drawn=new Set();
+  g.font='11px -apple-system,"KoddiUD OnGothic",sans-serif';
+  for(const m of [...MK].sort((a,b)=>b.t.nights-a.t.nights)){
+    const s=m.t.places[0]?shortName(m.t.places[0].name):''; if(!s||drawn.has(s)) continue;
+    drawn.add(s);
+    const w=g.measureText(s).width, x=m.x+8, y=m.y+4;
+    const bx=[x-2,y-9,x+w+2,y+3];
+    if(boxes.some(o=>bx[0]<o[2]&&bx[2]>o[0]&&bx[1]<o[3]&&bx[3]>o[1])) continue;
+    boxes.push(bx);
+    g.fillStyle='rgba(255,255,255,.8)'; g.fillRect(bx[0],bx[1],w+4,12);
+    g.fillStyle='#374151'; g.fillText(s,x,y);
+  }
+}
+
+/* ---------- events ---------- */
+const drop=$('#drop');
+drop.onclick=()=>$('#file').click();
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('over');};
+drop.ondragleave=()=>drop.classList.remove('over');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');
+  if(e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);};
+$('#file').onchange=e=>{if(e.target.files[0]) load(e.target.files[0]);};
+
+function load(f){
+  if(!GEO){msg('경계 데이터를 아직 불러오는 중입니다. 잠시 후 다시 시도하세요.',1);return;}
+  msg(`${f.name} (${(f.size/1e6).toFixed(1)}MB) 읽는 중…`);
+  const rd=new FileReader();
+  rd.onerror=()=>msg('파일을 읽지 못했습니다.',1);
+  rd.onload=()=>{
+    setTimeout(()=>{
+      try{
+        const t0=performance.now();
+        ST=analyse(JSON.parse(rd.result));
+        $('#th').value=ST.auto;
+        $('#out').classList.remove('hide');
+        drop.style.padding='18px 20px';
+        drop.querySelector('b').textContent='다른 파일 분석하기';
+        drop.querySelector('span').textContent=f.name;
+        render();
+        msg(`${ST.n.toLocaleString()}개 지점 분석 완료 (${Math.round(performance.now()-t0)}ms) · 기준 거리 ${ST.auto}km 자동 설정`);
+      }catch(err){
+        msg(err.message==='OLD'
+          ? '예전 Takeout 형식(timelineObjects)입니다. 아직 지원하지 않습니다.'
+          : err.message==='RAW'
+          ? 'Records.json(원시 위치 기록)입니다. Timeline 내보내기 파일을 사용하세요.'
+          : '분석 실패: '+err.message, 1);
+        console.error(err);
+      }
+    },30);
+  };
+  rd.readAsText(f);
+}
+$('#th').oninput=()=>{$('#thLbl').textContent=$('#th').value; if(ST) render();};
+$('#tabKr').onclick=()=>{MODE='kr';$('#tabKr').classList.add('on');$('#tabW').classList.remove('on');draw();};
+$('#tabW').onclick=()=>{MODE='world';$('#tabW').classList.add('on');$('#tabKr').classList.remove('on');draw();};
+addEventListener('resize',()=>{if(ST)draw();});
+
+$('#cv').onmousemove=e=>{
+  const b=e.currentTarget.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
+  let hit=null;
+  for(const m of MK) if((m.x-x)**2+(m.y-y)**2<200){hit=m;break;}
+  const tip=$('#tip');
+  document.querySelectorAll('#tbl tr.hl').forEach(r=>r.classList.remove('hl'));
+  if(hit){
+    tip.style.display='block';
+    tip.style.left=Math.min(e.clientX+12,innerWidth-230)+'px';
+    tip.style.top=(e.clientY+14)+'px';
+    tip.innerHTML=`<b>${hit.t.places.map(p=>p.name).join(' · ')}</b><br>
+      ${dstr(hit.t.a)} ~ ${dstr(hit.t.b)} · ${hit.t.nights}박 · ${Math.round(hit.t.km)}km`;
+    const i=ST.trips.indexOf(hit.t), row=document.querySelector(`#tbl tr[data-i="${i}"]`);
+    if(row) row.classList.add('hl');
+  } else tip.style.display='none';
+};
+$('#cv').onmouseleave=()=>{$('#tip').style.display='none';
+  document.querySelectorAll('#tbl tr.hl').forEach(r=>r.classList.remove('hl'));};
+
+$('#dl').onclick=()=>{
+  const rows=[['시작','종료','박','최대거리km','목적지','경유','해외']].concat(
+    ST.trips.map(t=>[dstr(t.a),dstr(t.b),t.nights,Math.round(t.km),
+      t.places[0]?t.places[0].name:'',t.places.slice(1).map(p=>p.name).join(' / '),t.abroad?'Y':'']));
+  const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='trips.csv'; a.click();
+};
+</script>
+</body>
+</html>
