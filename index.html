@@ -88,7 +88,8 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 #modalTitle .m{color:var(--ink2);font-size:13px;margin-left:6px}
 #modalTitle .p{font-weight:600;margin-top:2px}
 #modalTitle .s{color:var(--blue-d);font-size:12.5px;margin-top:1px}
-#mcv{width:100%;display:block;border-radius:8px;background:var(--bg2);border:1px solid var(--line)}
+#mcv{width:100%;display:block;border-radius:8px;background:var(--bg2);border:1px solid var(--line);cursor:grab;touch-action:none}
+#mcv.drag{cursor:grabbing}
 #days{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .chip{border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:12.5px;
   cursor:pointer;background:var(--bg);line-height:1.35;text-align:left}
@@ -98,6 +99,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 .chip.on{border-color:var(--blue);background:var(--blue-l);color:var(--ink)}
 .chip.empty span{color:var(--ink3)}
 #attr{font-size:11.5px;color:var(--ink3);margin-top:6px}
+.hint{font-size:11.5px;color:var(--ink3);margin-top:6px}
 #attr a{color:var(--ink2)}
 </style>
 </head>
@@ -162,6 +164,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
       <button id="modalClose">닫기</button>
     </div>
     <canvas id="mcv"></canvas>
+    <div class="hint">휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로</div>
     <div id="attr" class="hide">지도 데이터 ©
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 ©
       <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a></div>
@@ -659,6 +662,7 @@ function draw(){
 
 /* ---------- 여행 상세 모달 ---------- */
 let CUR=null, SEL=null, STAY=[];  // 열려 있는 여행 / 선택된 날짜 / 숙소 군집
+let VIEW=null, MV=null;           // 손으로 잡은 뷰(없으면 자동 맞춤) / 지금 그려진 뷰
 
 /* 여행 기간의 날짜별 지점. trips() 의 sum() 이 쓰는 fp(집에서 기준거리 밖만)와
    달리 집을 떠나고 돌아오는 구간까지 담는다 — 그래야 이동이 읽힌다. */
@@ -729,7 +733,10 @@ function drawDetail(){
   const all=[].concat(...DD.map(r=>r.pts));
   // 날짜를 고르면 그 날에 맞춰 다시 확대한다. 전체 보기로는 도시 안 이동이 안 보인다.
   const fitPts=(SEL!=null&&(ST.days.get(SEL)||[]).length)?ST.days.get(SEL):all;
-  const V=fitTrip(fitPts,W,H); if(!V) return;
+  // 손으로 확대·이동했으면 그 뷰를 쓴다. 타일에 상호·도로명이 있어서
+  // 충분히 당기면 어디였는지 API 없이 읽힌다.
+  const V=VIEW||fitTrip(fitPts,W,H); if(!V) return;
+  MV=V;
   // 날짜변경선을 건너는 여행은 fitTrip 이 경도를 풀어서 잡았으므로 여기서도 같은 규칙을 쓴다
   const wl=lo=>V.wrap&&lo<0?lo+360:lo;
   const X=(la,lo)=>merc(la,wl(lo),V.z)[0]+V.ox, Y=(la,lo)=>merc(la,wl(lo),V.z)[1]+V.oy;
@@ -846,6 +853,7 @@ function buildDays(t){
 function openTrip(t){
   CUR=t;
   STAY=stays(t);
+  VIEW=null;                       // 새 여행은 자동 맞춤부터
   const y=dstr(t.a).slice(0,4);
   const range=fmt(t.a)+(t.nights?' ~ '+fmt(t.b):'');
   // 숙소는 심야 체류 기록이 있을 때만 잡히므로 없으면 줄 자체를 안 만든다.
@@ -959,9 +967,38 @@ $('#days').onclick=e=>{
   const c=e.target.closest('.chip'); if(!c) return;
   const d=+c.dataset.d;
   SEL=SEL===d?null:d;
+  VIEW=null;                     // 날짜를 바꾸면 그 날 범위로 다시 맞춘다
   document.querySelectorAll('#days .chip').forEach(x=>x.classList.toggle('on',+x.dataset.d===SEL));
   drawDetail();
 };
+
+/* 휠로 확대, 끌어서 이동, 더블클릭으로 자동 맞춤 복귀 */
+$('#mcv').onwheel=e=>{
+  if(!CUR||!MV) return;
+  e.preventDefault();
+  const b=e.currentTarget.getBoundingClientRect();
+  const sx=e.clientX-b.left, sy=e.clientY-b.top;
+  const z=Math.max(0,Math.min(ZMAX,MV.z+(e.deltaY<0?1:-1)));
+  if(z===MV.z) return;
+  // 커서 아래 지점이 제자리에 남도록 오프셋을 다시 잡는다
+  const k=Math.pow(2,z-MV.z);
+  VIEW={z,wrap:MV.wrap,ox:sx-(sx-MV.ox)*k,oy:sy-(sy-MV.oy)*k};
+  drawDetail();
+};
+let DRAG=null;
+$('#mcv').onmousedown=e=>{
+  if(!CUR||!MV) return;
+  e.preventDefault();
+  DRAG={x:e.clientX,y:e.clientY,ox:MV.ox,oy:MV.oy,z:MV.z,wrap:MV.wrap};
+  $('#mcv').classList.add('drag');
+};
+addEventListener('mousemove',e=>{
+  if(!DRAG) return;
+  VIEW={z:DRAG.z,wrap:DRAG.wrap,ox:DRAG.ox+(e.clientX-DRAG.x),oy:DRAG.oy+(e.clientY-DRAG.y)};
+  drawDetail();
+});
+addEventListener('mouseup',()=>{DRAG=null;$('#mcv').classList.remove('drag');});
+$('#mcv').ondblclick=()=>{VIEW=null;drawDetail();};
 
 /* 여행을 열 때는 저장된 선택을 반영만(applyTiles) 하고, 누를 때만 기록한다(setTiles).
    반영이 기록까지 하면 여는 것만으로 키가 생겨 "끈 적 없음"과 "꺼 둠"을 구분할 수 없다. */
