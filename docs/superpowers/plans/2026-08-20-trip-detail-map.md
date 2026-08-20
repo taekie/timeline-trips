@@ -297,7 +297,9 @@ git commit -m "상세 지도용 웹 메르카토르 투영 추가
   cursor:pointer;background:var(--bg);line-height:1.35;text-align:left}
 .chip b{display:block;font-variant-numeric:tabular-nums;font-weight:600}
 .chip span{color:var(--ink2);font-size:11.5px}
-.chip.on{border-color:var(--blue);background:var(--blue-l)}
+/* color 를 반드시 같이 준다. .chip 이 button 이라 전역 button.on{color:#fff}
+   (index.html:65) 이 먹어서, 배경만 덮으면 흰 글씨가 연파랑 위에 남아 안 읽힌다. */
+.chip.on{border-color:var(--blue);background:var(--blue-l);color:var(--ink)}
 .chip.empty span{color:var(--ink3)}
 #tileNote{font-size:12.5px;color:var(--ink2);background:var(--bg2);
   border:1px solid var(--line);border-radius:6px;padding:9px 11px;margin-top:10px}
