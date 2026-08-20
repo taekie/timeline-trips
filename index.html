@@ -803,7 +803,7 @@ function openTrip(t){
   $('#modalTitle').innerHTML=
     `<span class="d">${y}.${range}</span><span class="m">${t.nights}박 · 최대 ${Math.round(t.km).toLocaleString()}km</span>
      <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>`;
-  setTiles(prefGet('tt.tiles')==='1');
+  applyTiles(prefGet('tt.tiles')==='1');
   $('#tileNote').classList.add('hide');
   $('#modal').classList.add('open');
   buildDays(t);
@@ -906,12 +906,15 @@ $('#days').onclick=e=>{
 };
 
 /* 처음 켤 때는 무엇이 어디로 나가는지 알리고 한 번 더 누르게 한다. */
-function setTiles(v){
-  TILES=v; prefSet('tt.tiles',v?'1':'0');
+/* 여행을 열 때는 저장된 선택을 반영만 한다 — 여기서 기록까지 하면
+   키가 생겨 버려서 첫 켜기 고지가 영영 안 뜬다. */
+function applyTiles(v){
+  TILES=v;
   $('#tiles').classList.toggle('on',v);
   $('#attr').classList.toggle('hide',!v);
   drawDetail();
 }
+function setTiles(v){ prefSet('tt.tiles',v?'1':'0'); applyTiles(v); }
 $('#tiles').onclick=()=>{
   if(TILES) return setTiles(false);
   if(prefGet('tt.tiles')===null) $('#tileNote').classList.remove('hide');
