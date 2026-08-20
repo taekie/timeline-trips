@@ -546,11 +546,12 @@ function draw(){
   }
   g.globalAlpha=.28; g.strokeStyle='#3b82f6'; g.lineWidth=1;
   const hx=X(h[1]),hy=Y(h[0]);
-  // bow each line perpendicular to itself so the fan reads as separate routes
+  // bow each line perpendicular to itself so the fan reads as separate routes,
+  // always to the north side so the fan reads like a flight map
   for(const m of MK){
-    const dx=m.x-hx, dy=m.y-hy, k=.15;
+    const dx=m.x-hx, dy=m.y-hy, k=.15, s=dx>0?-1:1;
     g.beginPath(); g.moveTo(hx,hy);
-    g.quadraticCurveTo((hx+m.x)/2-dy*k, (hy+m.y)/2+dx*k, m.x, m.y);
+    g.quadraticCurveTo((hx+m.x)/2-s*dy*k, (hy+m.y)/2+s*dx*k, m.x, m.y);
     g.stroke();
   }
   g.globalAlpha=1;
