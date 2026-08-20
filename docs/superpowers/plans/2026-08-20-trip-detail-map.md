@@ -145,7 +145,8 @@ dmax 는 순서에 무관하므로 기존 판정은 바뀌지 않는다."
 - Consumes: `D` (= `Math.PI/180`, index.html:137)
 - Produces:
   - `merc(la, lo, z) -> [x, y]` — 줌 `z`에서의 전역 픽셀 좌표. 타일 한 변은 256px
-  - `fitTrip(pts, W, H) -> {z, ox, oy} | null` — `pts`는 `[위도, 경도][]`. 화면 좌표는 `merc(la,lo,z)[0]+ox`, `merc(la,lo,z)[1]+oy`. 빈 배열이면 `null`
+  - `fitTrip(pts, W, H) -> {z, wrap, ox, oy} | null` — `pts`는 `[위도, 경도][]`. 빈 배열이면 `null`. 화면 좌표는 `merc(la, wrap&&lo<0?lo+360:lo, z)[0]+ox`, `merc(...)[1]+oy`
+  - `wrap`은 여행이 날짜변경선을 건널 때 `true`다. 이때 음수 경도를 +360으로 풀어야 태평양 쪽 짧은 경로로 잡힌다. `merc`는 180도를 넘는 경도를 그대로 받아 세계 폭 밖 x를 돌려주며, 타일은 `((x%n)+n)%n`으로 감싸므로 그대로 맞아떨어진다
   - 상수 `TILE` (=256), `ZMAX` (=16)
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
@@ -169,7 +170,8 @@ dmax 는 순서에 무관하므로 기존 판정은 바뀌지 않는다."
     const v = ctx.fitTrip(pts, W, H);
     assert.ok(v, `${what}: 뷰가 나온다`); n++;
     for (const p of pts) {
-      const m = ctx.merc(p[0], p[1], v.z);
+      // 날짜변경선을 건너면 fitTrip 이 경도를 풀어서 잡으므로 여기서도 같은 규칙을 쓴다
+      const m = ctx.merc(p[0], v.wrap && p[1] < 0 ? p[1] + 360 : p[1], v.z);
       assert.ok(m[0] + v.ox >= 0 && m[0] + v.ox <= W && m[1] + v.oy >= 0 && m[1] + v.oy <= H,
         `${what}: ${p} 가 캔버스 안`); n++;
     }
@@ -181,6 +183,16 @@ dmax 는 순서에 무관하므로 기존 판정은 바뀌지 않는다."
   const one = inside([[37.5665, 126.9780]], '한 점');
   assert.ok(one.z <= 14, `한 점짜리도 최소 스팬 때문에 과확대되지 않는다: z=${one.z}`); n++;
   assert.strictEqual(ctx.fitTrip([], W, H), null, '빈 입력은 null'); n++;
+
+  // 날짜변경선을 건너는 여행은 지구 반대편이 아니라 태평양 쪽으로 잡는다
+  const pac = ctx.fitTrip([[35.6762, 139.6503], [21.3069, -157.8583]], W, H);
+  assert.ok(pac.wrap, '태평양 횡단은 경도를 풀어서 잡는다'); n++;
+  assert.ok(pac.z >= 3, `태평양 횡단 줌이 과도하게 빠지지 않는다: z=${pac.z}`); n++;
+  const px = (p, v) => ctx.merc(p[0], v.wrap && p[1] < 0 ? p[1] + 360 : p[1], v.z)[0] + v.ox;
+  assert.ok(px([21.3069, -157.8583], pac) > px([35.6762, 139.6503], pac),
+    '호놀룰루가 도쿄 오른쪽에 온다'); n++;
+  assert.ok(!ctx.fitTrip([[37.5665, 126.9780], [35.1796, 129.0756]], W, H).wrap,
+    '국내 여행은 wrap 하지 않는다'); n++;
 ```
 
 - [ ] **Step 2: 실패를 확인한다**
@@ -209,6 +221,14 @@ function fitTrip(pts,W,H){
     if(p[1]<lo0)lo0=p[1]; if(p[1]>lo1)lo1=p[1];
   }
   if(!isFinite(la0)) return null;
+  let wrap=false;
+  if(lo1-lo0>180){                     // 날짜변경선을 건너면 짧은 쪽으로 잡는다
+    wrap=true; lo0=1/0; lo1=-1/0;
+    for(const p of pts){
+      const lo=p[1]<0?p[1]+360:p[1];
+      if(lo<lo0)lo0=lo; if(lo>lo1)lo1=lo;
+    }
+  }
   const MIN=.02;                       // 한 점짜리 여행도 약 2km 폭은 보이게
   if(la1-la0<MIN){const c=(la0+la1)/2; la0=c-MIN/2; la1=c+MIN/2;}
   if(lo1-lo0<MIN){const c=(lo0+lo1)/2; lo0=c-MIN/2; lo1=c+MIN/2;}
@@ -219,14 +239,14 @@ function fitTrip(pts,W,H){
     if(b[0]-a[0]<=W*(1-pad*2)&&b[1]-a[1]<=H*(1-pad*2)) break;
   }
   const a=merc(la1,lo0,z), b=merc(la0,lo1,z);
-  return {z, ox:(W-(b[0]-a[0]))/2-a[0], oy:(H-(b[1]-a[1]))/2-a[1]};
+  return {z, wrap, ox:(W-(b[0]-a[0]))/2-a[0], oy:(H-(b[1]-a[1]))/2-a[1]};
 }
 ```
 
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `node test.js`
-Expected: PASS — `ok — 37 checks` (기준선 15 + Task 1 의 2 + 이 태스크의 20)
+Expected: PASS — `ok — 41 checks` (기준선 15 + Task 1 의 2 + 이 태스크의 24)
 
 - [ ] **Step 5: 커밋**
 
@@ -359,7 +379,7 @@ addEventListener('keydown',e=>{if(e.key==='Escape'&&CUR) closeTrip();});
 - [ ] **Step 5: 기존 테스트가 안 깨지는지 본다**
 
 Run: `node test.js`
-Expected: PASS — `ok — 37 checks` (모달은 스텁 DOM에서 검증하지 않는다. 최상위에서 `localStorage`·`Image`를 건드리지 않았는지가 여기서 걸린다)
+Expected: PASS — `ok — 41 checks` (모달은 스텁 DOM에서 검증하지 않는다. 최상위에서 `localStorage`·`Image`를 건드리지 않았는지가 여기서 걸린다)
 
 - [ ] **Step 6: 브라우저로 확인한다**
 
@@ -450,7 +470,9 @@ function drawDetail(){
   // 날짜를 고르면 그 날에 맞춰 다시 확대한다. 전체 보기로는 도시 안 이동이 안 보인다.
   const fitPts=(SEL!=null&&(ST.days.get(SEL)||[]).length)?ST.days.get(SEL):all;
   const V=fitTrip(fitPts,W,H); if(!V) return;
-  const X=(la,lo)=>merc(la,lo,V.z)[0]+V.ox, Y=(la,lo)=>merc(la,lo,V.z)[1]+V.oy;
+  // 날짜변경선을 건너는 여행은 fitTrip 이 경도를 풀어서 잡았으므로 여기서도 같은 규칙을 쓴다
+  const wl=lo=>V.wrap&&lo<0?lo+360:lo;
+  const X=(la,lo)=>merc(la,wl(lo),V.z)[0]+V.ox, Y=(la,lo)=>merc(la,wl(lo),V.z)[1]+V.oy;
 
   drawBackdrop(g,V,W,H,X,Y);
 
@@ -487,7 +509,7 @@ function drawDetail(){
 - [ ] **Step 2: 회귀를 확인한다**
 
 Run: `node test.js`
-Expected: PASS — `ok — 37 checks`
+Expected: PASS — `ok — 41 checks`
 
 - [ ] **Step 3: 브라우저로 확인한다**
 
@@ -598,7 +620,7 @@ $('#days').onclick=e=>{
 - [ ] **Step 5: 통과를 확인한다**
 
 Run: `node test.js`
-Expected: PASS — `ok — 40 checks` (37 + 이 태스크의 3)
+Expected: PASS — `ok — 44 checks` (41 + 이 태스크의 3)
 
 - [ ] **Step 6: 브라우저로 확인한다**
 
@@ -730,7 +752,7 @@ $('#tileOk').onclick=()=>{$('#tileNote').classList.add('hide'); setTiles(true);}
 - [ ] **Step 5: 회귀를 확인한다**
 
 Run: `node test.js`
-Expected: PASS — `ok — 40 checks` (최상위에서 `localStorage`·`Image`·`requestAnimationFrame`을 건드렸다면 여기서 죽는다)
+Expected: PASS — `ok — 44 checks` (최상위에서 `localStorage`·`Image`·`requestAnimationFrame`을 건드렸다면 여기서 죽는다)
 
 - [ ] **Step 6: 브라우저로 확인한다**
 
@@ -764,7 +786,7 @@ localStorage 에 남긴다. 제공자는 CARTO Positron — 밝은 저채도라
 - [ ] **전체 회귀**
 
 Run: `node test.js`
-Expected: `ok — 40 checks`
+Expected: `ok — 44 checks`
 
 - [ ] **세 가지 거주국으로 훑는다**
 
