@@ -73,7 +73,7 @@ vm.runInContext(code, ctx);
     const v = ctx.fitTrip(pts, W, H);
     assert.ok(v, `${what}: 뷰가 나온다`); n++;
     for (const p of pts) {
-      const m = ctx.merc(p[0], p[1], v.z);
+      const m = ctx.merc(p[0], v.wrap && p[1] < 0 ? p[1] + 360 : p[1], v.z);
       assert.ok(m[0] + v.ox >= 0 && m[0] + v.ox <= W && m[1] + v.oy >= 0 && m[1] + v.oy <= H,
         `${what}: ${p} 가 캔버스 안`); n++;
     }
@@ -85,6 +85,17 @@ vm.runInContext(code, ctx);
   const one = inside([[37.5665, 126.9780]], '한 점');
   assert.ok(one.z <= 14, `한 점짜리도 최소 스팬 때문에 과확대되지 않는다: z=${one.z}`); n++;
   assert.strictEqual(ctx.fitTrip([], W, H), null, '빈 입력은 null'); n++;
+
+  // 날짜변경선을 건너는 여행은 지구 반대편이 아니라 태평양 쪽으로 잡는다
+  const pac = ctx.fitTrip([[35.6762, 139.6503], [21.3069, -157.8583]], W, H);
+  assert.ok(pac.wrap, '태평양 횡단은 경도를 풀어서 잡는다'); n++;
+  assert.ok(pac.z >= 3, `태평양 횡단 줌이 과도하게 빠지지 않는다: z=${pac.z}`); n++;
+  const px = (p, v) => ctx.merc(p[0], v.wrap && p[1] < 0 ? p[1] + 360 : p[1], v.z)[0] + v.ox;
+  assert.ok(px([21.3069, -157.8583], pac) > px([35.6762, 139.6503], pac),
+    '호놀룰루가 도쿄 오른쪽에 온다'); n++;
+  // 날짜변경선을 안 건너는 여행은 경도를 풀지 않는다
+  assert.ok(!ctx.fitTrip([[37.5665, 126.9780], [35.1796, 129.0756]], W, H).wrap,
+    '국내 여행은 wrap 하지 않는다'); n++;
 
   // --- 하루 안 지점이 시간순으로 정렬된다 -----------------------------------
   const visit = (st, en, la, lo, type) => ({
