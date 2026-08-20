@@ -332,6 +332,7 @@ function analyse(raw){
   const H=buildHomes(homes,nights);
   if(!H) throw new Error('집을 추정할 만한 체류 기록이 없습니다.');
 
+  pts.sort((x,y)=>x[0]-y[0]);   // 하루 안 경로를 시간순으로 잇기 위해 한 번만 정렬한다
   const days=new Map();
   for(const[t,p,off]of pts){
     const d=dayOf(t,p,off);

@@ -57,6 +57,29 @@ vm.runInContext(code, ctx);
   eq(ctx.shortName('Honolulu, 미국'), 'Honolulu', '라벨: 해외는 도시명');
   assert.ok(Math.abs(ctx.hav([37.5, 127], [37.5, 128]) - 88.3) < 1, 'haversine'); n++;
 
+  // --- 하루 안 지점이 시간순으로 정렬된다 -----------------------------------
+  const visit = (st, en, la, lo, type) => ({
+    startTime: st, endTime: en,
+    visit: {topCandidate: {placeLocation: `geo:${la},${lo}`, semanticType: type}},
+  });
+  const segs = [];
+  for (let i = 1; i <= 25; i++) {              // buildHomes 는 Home 표 20개 이상을 요구한다
+    const d = `2025-01-${String(i).padStart(2, '0')}`;
+    segs.push(visit(`${d}T22:00:00.000+09:00`, `${d}T23:00:00.000+09:00`,
+                    37.5665, 126.9780, 'INFERRED_HOME'));
+  }
+  // 같은 날의 세 체류를 파일에는 시간 역순으로 적어 둔다
+  segs.push(visit('2025-01-26T18:00:00.000+09:00', '2025-01-26T19:00:00.000+09:00', 37.53, 127.0, 'UNKNOWN'));
+  segs.push(visit('2025-01-26T09:00:00.000+09:00', '2025-01-26T10:00:00.000+09:00', 37.51, 127.0, 'UNKNOWN'));
+  segs.push(visit('2025-01-26T13:00:00.000+09:00', '2025-01-26T14:00:00.000+09:00', 37.52, 127.0, 'UNKNOWN'));
+  const ORD = ctx.analyse({semanticSegments: segs});
+  // extract 는 체류마다 시작·종료 두 점을 넣으므로 그 날은 6점이다
+  const mixed = [...ORD.days.entries()].find(([, ps]) => ps.length === 6);
+  assert.ok(mixed, '역순으로 적은 날을 찾는다'); n++;
+  // vm 컨텍스트에서 나온 배열은 프로토타입이 달라 deepStrictEqual 이 실패한다. 문자열로 비교한다.
+  eq(mixed[1].map(p => p[0]).join(','),
+     '37.51,37.51,37.52,37.52,37.53,37.53', '하루 안 지점이 시간순');
+
   // --- end-to-end (needs a real export) -----------------------------------
   if (fs.existsSync(__dirname + '/lh.json')) {
     const raw = JSON.parse(fs.readFileSync(__dirname + '/lh.json', 'utf8'));
