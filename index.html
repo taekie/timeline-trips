@@ -663,8 +663,82 @@ function draw(){
 }
 
 /* ---------- 여행 상세 모달 ---------- */
-let CUR=null;                    // 열려 있는 여행
-function drawDetail(){}          // Task 4
+let CUR=null, SEL=null;          // 열려 있는 여행 / 선택된 날짜
+
+/* 여행 기간의 날짜별 지점. trips() 의 sum() 이 쓰는 fp(집에서 기준거리 밖만)와
+   달리 집을 떠나고 돌아오는 구간까지 담는다 — 그래야 이동이 읽힌다. */
+function tripDays(t){
+  const out=[];
+  for(let d=t.a;d<=t.b;d++) out.push({d,pts:ST.days.get(d)||[]});
+  return out;
+}
+
+/* 배경. 지금은 벡터뿐이고 Task 6 에서 타일 분기가 붙는다. */
+function drawBackdrop(g,V,W,H,X,Y){
+  const ccs=new Set(CUR.places.map(p=>p.cc).filter(Boolean));
+  if(HOME_CC) ccs.add(HOME_CC);
+  g.lineWidth=.6; g.strokeStyle='#fff'; g.fillStyle='#eceff3';
+  for(const cc of ccs) for(const f of (REG.get(cc)||[])){
+    for(let k=0;k<f[1].length;k++){
+      const bb=f[3][k];                       // [최소경도,최소위도,최대경도,최대위도]
+      const x0=X(bb[3],bb[0]), y0=Y(bb[3],bb[0]), x1=X(bb[1],bb[2]), y1=Y(bb[1],bb[2]);
+      if(x1<0||x0>W||y1<0||y0>H) continue;    // 화면 밖 링은 건너뛴다
+      const ring=f[1][k];
+      g.beginPath(); g.moveTo(X(ring[1],ring[0]),Y(ring[1],ring[0]));
+      for(let i=2;i<ring.length;i+=2) g.lineTo(X(ring[i+1],ring[i]),Y(ring[i+1],ring[i]));
+      g.closePath(); g.fill(); g.stroke();
+    }
+  }
+}
+
+function drawDetail(){
+  const t=CUR; if(!t) return;
+  const cv=$('#mcv'), W=cv.clientWidth||860, H=Math.round(Math.min(W*.52,440));
+  const dpr=devicePixelRatio||1;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px';
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
+
+  const DD=tripDays(t);
+  const all=[].concat(...DD.map(r=>r.pts));
+  // 날짜를 고르면 그 날에 맞춰 다시 확대한다. 전체 보기로는 도시 안 이동이 안 보인다.
+  const fitPts=(SEL!=null&&(ST.days.get(SEL)||[]).length)?ST.days.get(SEL):all;
+  const V=fitTrip(fitPts,W,H); if(!V) return;
+  // 날짜변경선을 건너는 여행은 fitTrip 이 경도를 풀어서 잡았으므로 여기서도 같은 규칙을 쓴다
+  const wl=lo=>V.wrap&&lo<0?lo+360:lo;
+  const X=(la,lo)=>merc(la,wl(lo),V.z)[0]+V.ox, Y=(la,lo)=>merc(la,wl(lo),V.z)[1]+V.oy;
+
+  drawBackdrop(g,V,W,H,X,Y);
+
+  // 날짜별 경로 — 첫날이 가장 옅고 마지막 날이 가장 진하다
+  const nd=Math.max(DD.length-1,1);
+  DD.forEach((row,i)=>{
+    if(row.pts.length<2) return;
+    const on=SEL==null||SEL===row.d;
+    g.globalAlpha=on?.9:.12;
+    g.lineWidth=on?2.2:1.2;
+    g.strokeStyle=`hsl(217,90%,${68-i/nd*32}%)`;
+    g.beginPath();
+    g.moveTo(X(row.pts[0][0],row.pts[0][1]),Y(row.pts[0][0],row.pts[0][1]));
+    for(let k=1;k<row.pts.length;k++) g.lineTo(X(row.pts[k][0],row.pts[k][1]),Y(row.pts[k][0],row.pts[k][1]));
+    g.stroke();
+  });
+  g.globalAlpha=1;
+
+  for(const c of t.top){                       // 목적지 군집
+    g.beginPath(); g.arc(X(c[0],c[1]),Y(c[0],c[1]),5,0,7);
+    g.fillStyle='rgba(59,130,246,.85)'; g.fill();
+    g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke();
+  }
+  const h=ST.H.at(t.a), hx=X(h[0],h[1]), hy=Y(h[0],h[1]);
+  if(hx>=0&&hx<=W&&hy>=0&&hy<=H){              // 집은 범위 안일 때만
+    g.beginPath(); g.arc(hx,hy,5,0,7); g.fillStyle='#111827'; g.fill();
+    g.strokeStyle='#fff'; g.lineWidth=2; g.stroke();
+    g.font='600 11px -apple-system,sans-serif'; g.fillStyle='#111827';
+    g.fillText('집',hx+9,hy+4);
+  }
+}
+
 function buildDays(t){}          // Task 5
 
 function openTrip(t){
