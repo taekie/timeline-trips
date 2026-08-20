@@ -421,7 +421,7 @@ function nameTrips(T){
 
 /* ---------- render ---------- */
 function msg(s,err){$('#status').textContent=s;$('#status').className=err?'err':'';}
-const fmt=d=>dstr(d).replace(/-/g,'.').slice(2);
+const fmt=d=>dstr(d).slice(5).replace('-','.');   // 연도는 별도 열이라 월.일만 (0 패딩 유지 — 열 정렬)
 
 async function render(){
   const S=ST, TH=+$('#th').value;
