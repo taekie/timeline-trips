@@ -87,17 +87,16 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 #modalTitle .d{font-size:17px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 #modalTitle .m{color:var(--ink2);font-size:13px;margin-left:6px}
 #modalTitle .p{font-weight:600;margin-top:2px}
+#modalTitle .s{color:var(--blue-d);font-size:12.5px;margin-top:1px}
 #mcv{width:100%;display:block;border-radius:8px;background:var(--bg2);border:1px solid var(--line)}
 #days{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .chip{border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:12.5px;
   cursor:pointer;background:var(--bg);line-height:1.35;text-align:left}
 .chip b{display:block;font-variant-numeric:tabular-nums;font-weight:600}
+.chip b i{font-style:normal;font-weight:500;color:var(--ink3);margin-left:4px}
 .chip span{color:var(--ink2);font-size:11.5px}
 .chip.on{border-color:var(--blue);background:var(--blue-l);color:var(--ink)}
 .chip.empty span{color:var(--ink3)}
-#tileNote{font-size:12.5px;color:var(--ink2);background:var(--bg2);
-  border:1px solid var(--line);border-radius:6px;padding:9px 11px;margin-top:10px}
-#tileNote button{margin-left:8px}
 #attr{font-size:11.5px;color:var(--ink3);margin-top:6px}
 #attr a{color:var(--ink2)}
 </style>
@@ -106,7 +105,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 <div class="wrap">
 <h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
 <p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
-모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세의 배경 지도를 직접 켤 때만 지도 타일을 외부에서 받아옵니다.</p>
+모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세의 배경 지도는 외부에서 지도 타일을 받아오므로 보고 있는 지역의 타일 좌표가 그 서버에 전달됩니다. 모달의 <b>배경 지도</b> 버튼으로 끄면 그마저 받지 않습니다.</p>
 
 <div id="drop">
   <b>location-history.json 을 여기에 끌어다 놓으세요</b>
@@ -163,10 +162,6 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
       <button id="modalClose">닫기</button>
     </div>
     <canvas id="mcv"></canvas>
-    <div id="tileNote" class="hide">
-      배경 지도를 켜면 지도 타일을 CARTO 서버에서 받아옵니다. 보고 있는 지역의 좌표가 그 서버로 전달됩니다.
-      <button id="tileOk">켜기</button>
-    </div>
     <div id="attr" class="hide">지도 데이터 ©
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 ©
       <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a></div>
@@ -412,7 +407,7 @@ function analyse(raw){
 
   const years=new Map();
   for(const d of dayList){const y=dstr(d).slice(0,4); years.set(y,(years.get(y)||0)+1);}
-  return {days,dayList,dmax,H,res,auto,years,n:pts.length};
+  return {days,dayList,dmax,H,res,auto,years,nights,n:pts.length};
 }
 
 function trips(S,TH){
@@ -663,7 +658,7 @@ function draw(){
 }
 
 /* ---------- 여행 상세 모달 ---------- */
-let CUR=null, SEL=null;          // 열려 있는 여행 / 선택된 날짜
+let CUR=null, SEL=null, STAY=[];  // 열려 있는 여행 / 선택된 날짜 / 숙소 군집
 
 /* 여행 기간의 날짜별 지점. trips() 의 sum() 이 쓰는 fp(집에서 기준거리 밖만)와
    달리 집을 떠나고 돌아오는 구간까지 담는다 — 그래야 이동이 읽힌다. */
@@ -761,6 +756,15 @@ function drawDetail(){
     g.fillStyle='rgba(59,130,246,.85)'; g.fill();
     g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke();
   }
+  // 숙소는 목적지 점과 구분되게 속을 비우고 박 수를 적는다
+  for(const s of STAY){
+    const sx=X(s.pos[0],s.pos[1]), sy=Y(s.pos[0],s.pos[1]);
+    g.beginPath(); g.arc(sx,sy,6,0,7);
+    g.fillStyle='#fff'; g.fill();
+    g.strokeStyle='#2563eb'; g.lineWidth=2.5; g.stroke();
+    g.font='600 11px -apple-system,sans-serif'; g.fillStyle='#2563eb';
+    g.fillText(s.nights+'박', sx+10, sy+4);
+  }
   const h=ST.H.at(t.a), hx=X(h[0],h[1]), hy=Y(h[0],h[1]);
   if(hx>=0&&hx<=W&&hy>=0&&hy<=H){              // 집은 범위 안일 때만
     g.beginPath(); g.arc(hx,hy,5,0,7); g.fillStyle='#111827'; g.fill();
@@ -782,34 +786,68 @@ function dayLabel(pts){
   }
   let best=null;
   for(const c of cl.values()) if(!best||c.n>best.n) best=c;
-  const nm=placeName(best.la/best.n,best.lo/best.n).name;
-  // 칩이 좁으니 마지막 토큰만 쓴다. shortName 과 달리 구를 떼지 않는다 —
-  // 여행 안에서 하루를 가리킬 때는 "서초구"가 "서울특별시"보다 정확하다.
-  return nm.includes(', ')?nm.split(', ')[0]:nm.split(' ').pop();
+  return tightName(placeName(best.la/best.n,best.lo/best.n).name);
 }
+
+/* 좁은 칸용 지명. shortName 과 달리 구를 떼지 않는다 — 여행 안에서
+   한 지점을 가리킬 때는 "서초구"가 "서울특별시"보다 정확하다. */
+function tightName(nm){
+  if(nm.includes(', ')) return nm.split(', ')[0];
+  // "홋카이도 앞바다" 의 마지막 토큰만 떼면 "앞바다" 만 남는다. 접미사는 붙여 둔다.
+  const sea=/^(.*) 앞바다$/.exec(nm);
+  if(sea) return sea[1].split(' ').pop()+' 앞바다';
+  return nm.split(' ').pop();
+}
+
+/* 여행 중 현지 새벽 3시를 지나 머문 지점 = 숙소. buildHomes 의 심야 판정과
+   같은 규칙이다. 출발·복귀일 밤은 집에서 자므로 집 근처는 뺀다. */
+function stays(t){
+  const H=ST.H.at(t.a), cl=new Map();
+  for(const[st,en,p,off]of (ST.nights||[])){
+    const d=dayOf(st,p,off);
+    if(d<t.a||d>t.b) continue;
+    const o=off!=null?off:Math.round(p[1]/15)*36e5;
+    const h0=(st+o)/36e5, h1=(en+o)/36e5;
+    let over=false;
+    for(let h=Math.floor(h0);h<=Math.ceil(h1);h++) if(((h%24)+24)%24===3){over=true;break;}
+    if(!over||hav(H,p)<20) continue;
+    const k=p[0].toFixed(2)+','+p[1].toFixed(2);
+    if(!cl.has(k)) cl.set(k,{n:0,la:0,lo:0});
+    const c=cl.get(k); c.n++; c.la+=p[0]; c.lo+=p[1];
+  }
+  return [...cl.values()].sort((a,b)=>b.n-a.n)
+    .map(c=>({pos:[c.la/c.n,c.lo/c.n], nights:c.n}));
+}
+
+/* 날짜 인덱스는 UTC 자정 기준이라 getUTCDay 가 그 날의 요일이다 */
+const DOW='일월화수목금토';
+function dow(d){return DOW[new Date(d*DAY).getUTCDay()];}
 
 function buildDays(t){
   SEL=null;
   $('#days').innerHTML=tripDays(t).map(r=>{
     const lb=dayLabel(r.pts);
     return `<button class="chip${lb?'':' empty'}" data-d="${r.d}">
-      <b>${fmt(r.d)}</b><span>${lb||'기록 없음'}</span></button>`;
+      <b>${fmt(r.d)}<i>${dow(r.d)}</i></b><span>${lb||'기록 없음'}</span></button>`;
   }).join('');
 }
 
 function openTrip(t){
   CUR=t;
+  STAY=stays(t);
   const y=dstr(t.a).slice(0,4);
   const range=fmt(t.a)+(t.nights?' ~ '+fmt(t.b):'');
+  // 숙소는 심야 체류 기록이 있을 때만 잡히므로 없으면 줄 자체를 안 만든다
+  const sv=STAY.map(s=>`${tightName(placeName(s.pos[0],s.pos[1]).name)} ${s.nights}박`).join(' · ');
   $('#modalTitle').innerHTML=
     `<span class="d">${y}.${range}</span><span class="m">${t.nights}박 · 최대 ${Math.round(t.km).toLocaleString()}km</span>
-     <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>`;
-  $('#tileNote').classList.add('hide');
+     <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>
+     ${sv?`<div class="s">머문 곳 ${sv}</div>`:''}`;
   $('#modal').classList.add('open');
   buildDays(t);
   // applyTiles 가 drawDetail 을 부른다 — 모달이 보이고 SEL 이 리셋된 뒤여야
   // clientWidth 와 fitPts 가 이 여행 기준으로 나온다. 순서를 바꾸면 안 된다.
-  applyTiles(prefGet('tt.tiles')==='1');
+  applyTiles(prefGet('tt.tiles')!=='0');   // 명시적으로 끈 적이 없으면 켠다
 }
 function closeTrip(){CUR=null;$('#modal').classList.remove('open');}
 
@@ -907,9 +945,8 @@ $('#days').onclick=e=>{
   drawDetail();
 };
 
-/* 처음 켤 때는 무엇이 어디로 나가는지 알리고 한 번 더 누르게 한다. */
-/* 여행을 열 때는 저장된 선택을 반영만 한다 — 여기서 기록까지 하면
-   키가 생겨 버려서 첫 켜기 고지가 영영 안 뜬다. */
+/* 여행을 열 때는 저장된 선택을 반영만(applyTiles) 하고, 누를 때만 기록한다(setTiles).
+   반영이 기록까지 하면 여는 것만으로 키가 생겨 "끈 적 없음"과 "꺼 둠"을 구분할 수 없다. */
 function applyTiles(v){
   TILES=v;
   $('#tiles').classList.toggle('on',v);
@@ -917,12 +954,7 @@ function applyTiles(v){
   drawDetail();
 }
 function setTiles(v){ prefSet('tt.tiles',v?'1':'0'); applyTiles(v); }
-$('#tiles').onclick=()=>{
-  if(TILES) return setTiles(false);
-  if(prefGet('tt.tiles')===null) $('#tileNote').classList.remove('hide');
-  else setTiles(true);
-};
-$('#tileOk').onclick=()=>{$('#tileNote').classList.add('hide'); setTiles(true);};
+$('#tiles').onclick=()=>setTiles(!TILES);
 </script>
 </body>
 </html>
