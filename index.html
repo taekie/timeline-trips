@@ -739,7 +739,32 @@ function drawDetail(){
   }
 }
 
-function buildDays(t){}          // Task 5
+/* 그 날 지점이 가장 많은 군집의 중심으로 이름을 붙인다. 집에서 가장 먼
+   지점보다 그 날 실제로 보낸 곳을 대표한다. 격자 크기는 trips() 의 sum() 과 맞춘다. */
+function dayLabel(pts){
+  if(!pts.length) return '';
+  const cl=new Map();
+  for(const p of pts){
+    const k=p[0].toFixed(1)+','+p[1].toFixed(1);
+    if(!cl.has(k)) cl.set(k,{n:0,la:0,lo:0});
+    const c=cl.get(k); c.n++; c.la+=p[0]; c.lo+=p[1];
+  }
+  let best=null;
+  for(const c of cl.values()) if(!best||c.n>best.n) best=c;
+  const nm=placeName(best.la/best.n,best.lo/best.n).name;
+  // 칩이 좁으니 마지막 토큰만 쓴다. shortName 과 달리 구를 떼지 않는다 —
+  // 여행 안에서 하루를 가리킬 때는 "서초구"가 "서울특별시"보다 정확하다.
+  return nm.includes(', ')?nm.split(', ')[0]:nm.split(' ').pop();
+}
+
+function buildDays(t){
+  SEL=null;
+  $('#days').innerHTML=tripDays(t).map(r=>{
+    const lb=dayLabel(r.pts);
+    return `<button class="chip${lb?'':' empty'}" data-d="${r.d}">
+      <b>${fmt(r.d)}</b><span>${lb||'기록 없음'}</span></button>`;
+  }).join('');
+}
 
 function openTrip(t){
   CUR=t;
@@ -838,6 +863,15 @@ $('#cv').onclick=e=>{
 $('#modalClose').onclick=closeTrip;
 $('#modal').onclick=e=>{if(e.target===$('#modal')) closeTrip();};
 addEventListener('keydown',e=>{if(e.key==='Escape'&&CUR) closeTrip();});
+
+/* 날짜를 고르면 그 날만 강조하고 그 날 범위로 다시 확대한다. 다시 누르면 전체로 돌아온다. */
+$('#days').onclick=e=>{
+  const c=e.target.closest('.chip'); if(!c) return;
+  const d=+c.dataset.d;
+  SEL=SEL===d?null:d;
+  document.querySelectorAll('#days .chip').forEach(x=>x.classList.toggle('on',+x.dataset.d===SEL));
+  drawDetail();
+};
 </script>
 </body>
 </html>
