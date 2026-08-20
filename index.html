@@ -76,7 +76,7 @@ footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);
   font-size:12.5px;color:var(--ink2)}
 code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 
-#tbl tbody tr{cursor:pointer}
+#tbl tbody tr[data-i]{cursor:pointer}
 #modal{position:fixed;inset:0;background:rgba(17,24,39,.55);display:none;z-index:20;
   align-items:center;justify-content:center;padding:24px}
 #modal.open{display:flex}
@@ -106,7 +106,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 <div class="wrap">
 <h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
 <p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
-모든 계산은 이 브라우저 안에서만 일어나며 서버로 전송되는 데이터는 없습니다.</p>
+모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세의 배경 지도를 직접 켤 때만 지도 타일을 외부에서 받아옵니다.</p>
 
 <div id="drop">
   <b>location-history.json 을 여기에 끌어다 놓으세요</b>
@@ -696,6 +696,7 @@ function drawTiles(g,V,W,H){
       im.onload=()=>{if(CUR&&!TRAF) TRAF=requestAnimationFrame(()=>{TRAF=0;drawDetail();});};
       im.onerror=()=>{};                      // 실패한 타일은 벡터 없이 빈 칸으로 둔다
       im.src='https://a.basemaps.cartocdn.com/light_all/'+V.z+'/'+tx+'/'+y+'.png';
+      if(TILEC.size>=400) TILEC.delete(TILEC.keys().next().value); // FIFO 상한 — 세션이 길어져도 무한정 쌓이지 않게
       TILEC.set(k,im);
     }
     if(im.complete&&im.naturalWidth) g.drawImage(im,x*TILE+V.ox,y*TILE+V.oy,TILE,TILE);
@@ -803,11 +804,12 @@ function openTrip(t){
   $('#modalTitle').innerHTML=
     `<span class="d">${y}.${range}</span><span class="m">${t.nights}박 · 최대 ${Math.round(t.km).toLocaleString()}km</span>
      <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>`;
-  applyTiles(prefGet('tt.tiles')==='1');
   $('#tileNote').classList.add('hide');
   $('#modal').classList.add('open');
   buildDays(t);
-  drawDetail();
+  // applyTiles 가 drawDetail 을 부른다 — 모달이 보이고 SEL 이 리셋된 뒤여야
+  // clientWidth 와 fitPts 가 이 여행 기준으로 나온다. 순서를 바꾸면 안 된다.
+  applyTiles(prefGet('tt.tiles')==='1');
 }
 function closeTrip(){CUR=null;$('#modal').classList.remove('open');}
 
