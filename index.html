@@ -751,11 +751,17 @@ function drawDetail(){
   });
   g.globalAlpha=1;
 
-  for(const c of t.top){                       // 목적지 군집
+  // 목적지 군집. 여행 전체 기준으로 잡히므로, 날짜를 고르면 그 날 실제로
+  // 들른 군집만 남긴다 — 격자는 sum() 의 군집 키와 같은 0.1도다.
+  const dayCell=SEL==null?null
+    :new Set((ST.days.get(SEL)||[]).map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)));
+  for(const c of t.top){
+    g.globalAlpha=!dayCell||dayCell.has(c[0].toFixed(1)+','+c[1].toFixed(1))?1:.2;
     g.beginPath(); g.arc(X(c[0],c[1]),Y(c[0],c[1]),5,0,7);
     g.fillStyle='rgba(59,130,246,.85)'; g.fill();
     g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke();
   }
+  g.globalAlpha=1;
   // 숙소는 목적지 점과 구분되게 속을 비우고 박 수를 적는다.
   // 날짜를 고르면 그 날 잔 곳만 남기고 나머지는 희미하게 둔다.
   for(const s of STAY){
