@@ -673,8 +673,38 @@ function tripDays(t){
   return out;
 }
 
-/* 배경. 지금은 벡터뿐이고 Task 6 에서 타일 분기가 붙는다. */
+/* ---------- 배경 타일 (옵트인) ----------
+   기본은 꺼짐. 켜야만 요청이 나간다. localStorage 와 Image 는 test.js 의
+   스텁 컨텍스트에 없으므로 반드시 함수 안에서만 건드린다. */
+let TILES=false;
+const TILEC=new Map();
+let TRAF=0;
+function prefGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function prefSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+function drawTiles(g,V,W,H){
+  const n=Math.pow(2,V.z);
+  const x0=Math.floor(-V.ox/TILE), x1=Math.floor((W-V.ox)/TILE);
+  const y0=Math.max(0,Math.floor(-V.oy/TILE)), y1=Math.min(n-1,Math.floor((H-V.oy)/TILE));
+  for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){
+    const tx=((x%n)+n)%n, k=V.z+'/'+tx+'/'+y;
+    let im=TILEC.get(k);
+    if(!im){
+      im=new Image();       // crossOrigin 은 설정하지 않는다. 픽셀을 읽지 않으므로
+                            // 불필요하고, CORS 헤더가 없는 응답에서 오히려 실패한다.
+      // 타일이 도착할 때마다 다시 그린다. 프레임당 한 번으로 묶는다.
+      im.onload=()=>{if(CUR&&!TRAF) TRAF=requestAnimationFrame(()=>{TRAF=0;drawDetail();});};
+      im.onerror=()=>{};                      // 실패한 타일은 벡터 없이 빈 칸으로 둔다
+      im.src='https://a.basemaps.cartocdn.com/light_all/'+V.z+'/'+tx+'/'+y+'.png';
+      TILEC.set(k,im);
+    }
+    if(im.complete&&im.naturalWidth) g.drawImage(im,x*TILE+V.ox,y*TILE+V.oy,TILE,TILE);
+  }
+}
+
+/* 배경. 기본은 벡터, 켜면 타일. */
 function drawBackdrop(g,V,W,H,X,Y){
+  if(TILES) return drawTiles(g,V,W,H);
   const ccs=new Set(CUR.places.map(p=>p.cc).filter(Boolean));
   if(HOME_CC) ccs.add(HOME_CC);
   g.lineWidth=.6; g.strokeStyle='#fff'; g.fillStyle='#eceff3';
@@ -773,6 +803,8 @@ function openTrip(t){
   $('#modalTitle').innerHTML=
     `<span class="d">${y}.${range}</span><span class="m">${t.nights}박 · 최대 ${Math.round(t.km).toLocaleString()}km</span>
      <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>`;
+  setTiles(prefGet('tt.tiles')==='1');
+  $('#tileNote').classList.add('hide');
   $('#modal').classList.add('open');
   buildDays(t);
   drawDetail();
@@ -872,6 +904,20 @@ $('#days').onclick=e=>{
   document.querySelectorAll('#days .chip').forEach(x=>x.classList.toggle('on',+x.dataset.d===SEL));
   drawDetail();
 };
+
+/* 처음 켤 때는 무엇이 어디로 나가는지 알리고 한 번 더 누르게 한다. */
+function setTiles(v){
+  TILES=v; prefSet('tt.tiles',v?'1':'0');
+  $('#tiles').classList.toggle('on',v);
+  $('#attr').classList.toggle('hide',!v);
+  drawDetail();
+}
+$('#tiles').onclick=()=>{
+  if(TILES) return setTiles(false);
+  if(prefGet('tt.tiles')===null) $('#tileNote').classList.remove('hide');
+  else setTiles(true);
+};
+$('#tileOk').onclick=()=>{$('#tileNote').classList.add('hide'); setTiles(true);};
 </script>
 </body>
 </html>
