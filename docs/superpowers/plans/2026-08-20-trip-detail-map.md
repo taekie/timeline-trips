@@ -711,13 +711,16 @@ function drawBackdrop(g,V,W,H,X,Y){
 Task 5의 `$('#days').onclick` 뒤에 넣는다.
 
 ```js
-/* 처음 켤 때는 무엇이 어디로 나가는지 알리고 한 번 더 누르게 한다. */
-function setTiles(v){
-  TILES=v; prefSet('tt.tiles',v?'1':'0');
+/* 처음 켤 때는 무엇이 어디로 나가는지 알리고 한 번 더 누르게 한다.
+   반영(applyTiles)과 기록(setTiles)을 반드시 나눈다 — 여행을 열 때
+   기록까지 하면 키가 생겨서 첫 켜기 고지가 영영 안 뜬다. */
+function applyTiles(v){
+  TILES=v;
   $('#tiles').classList.toggle('on',v);
   $('#attr').classList.toggle('hide',!v);
   drawDetail();
 }
+function setTiles(v){ prefSet('tt.tiles',v?'1':'0'); applyTiles(v); }
 $('#tiles').onclick=()=>{
   if(TILES) return setTiles(false);
   if(prefGet('tt.tiles')===null) $('#tileNote').classList.remove('hide');
@@ -729,9 +732,11 @@ $('#tileOk').onclick=()=>{$('#tileNote').classList.add('hide'); setTiles(true);}
 `openTrip`의 `$('#modal').classList.add('open');` 바로 앞에 저장된 선택을 반영하는 두 줄을 넣는다.
 
 ```js
-  setTiles(prefGet('tt.tiles')==='1');
+  applyTiles(prefGet('tt.tiles')==='1');
   $('#tileNote').classList.add('hide');
 ```
+
+`setTiles`가 아니라 `applyTiles`여야 한다. 여행을 여는 것만으로 `tt.tiles`에 `'0'`이 기록되면 `$('#tiles').onclick`의 `prefGet(...)===null` 분기가 도달 불가능해지고, 첫 클릭이 고지 없이 바로 타일을 받아온다.
 
 - [ ] **Step 4: README를 고친다**
 
