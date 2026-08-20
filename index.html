@@ -75,6 +75,31 @@ button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight
 footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);
   font-size:12.5px;color:var(--ink2)}
 code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
+
+#tbl tbody tr{cursor:pointer}
+#modal{position:fixed;inset:0;background:rgba(17,24,39,.55);display:none;z-index:20;
+  align-items:center;justify-content:center;padding:24px}
+#modal.open{display:flex}
+#modalBox{background:var(--bg);border-radius:10px;width:min(900px,100%);
+  max-height:100%;overflow:auto;padding:18px 20px 16px}
+#modalHead{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+#modalTitle{flex:1;min-width:0}
+#modalTitle .d{font-size:17px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+#modalTitle .m{color:var(--ink2);font-size:13px;margin-left:6px}
+#modalTitle .p{font-weight:600;margin-top:2px}
+#mcv{width:100%;display:block;border-radius:8px;background:var(--bg2);border:1px solid var(--line)}
+#days{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.chip{border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:12.5px;
+  cursor:pointer;background:var(--bg);line-height:1.35;text-align:left}
+.chip b{display:block;font-variant-numeric:tabular-nums;font-weight:600}
+.chip span{color:var(--ink2);font-size:11.5px}
+.chip.on{border-color:var(--blue);background:var(--blue-l)}
+.chip.empty span{color:var(--ink3)}
+#tileNote{font-size:12.5px;color:var(--ink2);background:var(--bg2);
+  border:1px solid var(--line);border-radius:6px;padding:9px 11px;margin-top:10px}
+#tileNote button{margin-left:8px}
+#attr{font-size:11.5px;color:var(--ink3);margin-top:6px}
+#attr a{color:var(--ink2)}
 </style>
 </head>
 <body>
@@ -129,6 +154,24 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
     지명은 행정구역 경계(국내 시·군·구) 및 도시 좌표(해외)와 대조해 붙였습니다.
   </footer>
 </div>
+</div>
+<div id="modal">
+  <div id="modalBox">
+    <div id="modalHead">
+      <div id="modalTitle"></div>
+      <button id="tiles">배경 지도</button>
+      <button id="modalClose">닫기</button>
+    </div>
+    <canvas id="mcv"></canvas>
+    <div id="tileNote" class="hide">
+      배경 지도를 켜면 지도 타일을 CARTO 서버에서 받아옵니다. 보고 있는 지역의 좌표가 그 서버로 전달됩니다.
+      <button id="tileOk">켜기</button>
+    </div>
+    <div id="attr" class="hide">지도 데이터 ©
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 ©
+      <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a></div>
+    <div id="days"></div>
+  </div>
 </div>
 <div id="tip"></div>
 
@@ -619,6 +662,24 @@ function draw(){
   }
 }
 
+/* ---------- 여행 상세 모달 ---------- */
+let CUR=null;                    // 열려 있는 여행
+function drawDetail(){}          // Task 4
+function buildDays(t){}          // Task 5
+
+function openTrip(t){
+  CUR=t;
+  const y=dstr(t.a).slice(0,4);
+  const range=fmt(t.a)+(t.nights?' ~ '+fmt(t.b):'');
+  $('#modalTitle').innerHTML=
+    `<span class="d">${y}.${range}</span><span class="m">${t.nights}박 · 최대 ${Math.round(t.km).toLocaleString()}km</span>
+     <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>`;
+  $('#modal').classList.add('open');
+  buildDays(t);
+  drawDetail();
+}
+function closeTrip(){CUR=null;$('#modal').classList.remove('open');}
+
 /* ---------- events ---------- */
 const drop=$('#drop');
 drop.onclick=()=>$('#file').click();
@@ -690,6 +751,19 @@ $('#dl').onclick=()=>{
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download='trips.csv'; a.click();
 };
+
+/* 표 행과 지도 마커 둘 다 상세를 연다 */
+$('#tbl').onclick=e=>{
+  const tr=e.target.closest('tr[data-i]'); if(!tr) return;
+  openTrip(ST.trips[+tr.dataset.i]);
+};
+$('#cv').onclick=e=>{
+  const b=e.currentTarget.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
+  for(const m of MK) if((m.x-x)**2+(m.y-y)**2<200){openTrip(m.t);return;}
+};
+$('#modalClose').onclick=closeTrip;
+$('#modal').onclick=e=>{if(e.target===$('#modal')) closeTrip();};
+addEventListener('keydown',e=>{if(e.key==='Escape'&&CUR) closeTrip();});
 </script>
 </body>
 </html>
