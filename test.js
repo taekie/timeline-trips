@@ -57,6 +57,35 @@ vm.runInContext(code, ctx);
   eq(ctx.shortName('Honolulu, 미국'), 'Honolulu', '라벨: 해외는 도시명');
   assert.ok(Math.abs(ctx.hav([37.5, 127], [37.5, 128]) - 88.3) < 1, 'haversine'); n++;
 
+  // --- 웹 메르카토르 --------------------------------------------------------
+  const near = (a, b, tol, what) => { assert.ok(Math.abs(a - b) < tol, `${what}: ${a} != ${b}`); n++; };
+  near(ctx.merc(0, 0, 0)[0], 128, 1e-6, 'z0 본초자오선은 타일 중앙 x');
+  near(ctx.merc(0, 0, 0)[1], 128, 1e-6, 'z0 적도는 타일 중앙 y');
+  near(ctx.merc(0, 180, 0)[0], 256, 1e-6, 'z0 동경 180도는 타일 우단');
+  near(ctx.merc(85.05112878, 0, 0)[1], 0, 1e-6, 'z0 메르카토르 북단은 y=0');
+  const seoul = ctx.merc(37.5665, 126.9780, 12);
+  eq(Math.floor(seoul[0] / 256), 3492, 'z12 서울 타일 x');
+  eq(Math.floor(seoul[1] / 256), 1586, 'z12 서울 타일 y');
+
+  // fitTrip 은 주어진 지점을 모두 캔버스 안에 넣는다
+  const W = 860, H = 420;
+  const inside = (pts, what) => {
+    const v = ctx.fitTrip(pts, W, H);
+    assert.ok(v, `${what}: 뷰가 나온다`); n++;
+    for (const p of pts) {
+      const m = ctx.merc(p[0], p[1], v.z);
+      assert.ok(m[0] + v.ox >= 0 && m[0] + v.ox <= W && m[1] + v.oy >= 0 && m[1] + v.oy <= H,
+        `${what}: ${p} 가 캔버스 안`); n++;
+    }
+    return v;
+  };
+  inside([[37.5665, 126.9780], [35.1796, 129.0756]], '서울-부산');
+  inside([[35.6762, 139.6503], [35.6895, 139.6917], [35.7100, 139.8107]], '도쿄 시내');
+  inside([[35.6762, 139.6503], [21.3069, -157.8583]], '도쿄-호놀룰루');
+  const one = inside([[37.5665, 126.9780]], '한 점');
+  assert.ok(one.z <= 14, `한 점짜리도 최소 스팬 때문에 과확대되지 않는다: z=${one.z}`); n++;
+  assert.strictEqual(ctx.fitTrip([], W, H), null, '빈 입력은 null'); n++;
+
   // --- 하루 안 지점이 시간순으로 정렬된다 -----------------------------------
   const visit = (st, en, la, lo, type) => ({
     startTime: st, endTime: en,
