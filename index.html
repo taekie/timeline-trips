@@ -64,6 +64,8 @@ button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--line)
   background:var(--bg);border-radius:6px;cursor:pointer;color:var(--ink)}
 button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 .tabs{display:flex;gap:6px}
+/* 탭 옆에 또 파란 버튼이 붙으면 어느 쪽이 탭인지 헷갈린다 — 줄로 갈라 둔다 */
+#freqKind:not(.hide){border-left:1px solid var(--line);padding-left:16px}
 #cv.pan{touch-action:none;cursor:grab}
 #cv.pan.drag{cursor:grabbing}
 #cv{width:100%;display:block;border-radius:8px;background:var(--bg);border:1px solid var(--line);cursor:crosshair}
@@ -142,6 +144,10 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
       <button id="tabW">세계</button>
       <button id="tabF">자주 간 곳</button>
     </div>
+    <div class="tabs hide" id="freqKind">
+      <button id="fStay" class="on">방문</button>
+      <button id="fPass">경유</button>
+    </div>
     <label id="thWrap">집에서 <b id="thLbl">80</b>km 이상
       <input type="range" id="th" min="30" max="300" step="10" value="80"></label>
     <button id="tilesMain" class="hide">배경 지도</button>
@@ -160,6 +166,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
       <tbody></tbody>
     </table>
   </div>
+  <div class="note" id="freqnote"></div>
 
   <footer>
     <b>읽는 법.</b> 여행 판정 기준은 “그 시점의 집에서 얼마나 멀어졌는가”입니다. 이사를 하면 기준 집도 함께 바뀝니다.
@@ -517,34 +524,45 @@ function bearing(h,p){
    묶는 단위는 구글의 placeID 다. 행정구역으로 묶으면 "강남구 467일"처럼
    어디인지 알 수 없는 덩어리가 되고, 좌표 격자로 묶으면 같은 건물이 갈라진다.
    내보내기에 상호명은 없으므로 이름은 구·시와 집에서 본 방향·거리로 대신한다. */
+const FMIN=30;      // 분 — 이만큼은 머물러야 들른 것이다. 그 아래는 지나간 것.
 function frequent(){
   const acc=new Map();
   for(const v of dwellList((d,p)=>hav(ST.H.at(d),p)>=.2)){   // 집 자체는 뺀다
     let a=acc.get(v.k);
-    if(!a){a={days:new Set(),vs:[],la:0,lo:0,mins:0,work:false,over:0}; acc.set(v.k,a);}
-    a.days.add(v.d); a.vs.push(v); a.la+=v.pos[0]; a.lo+=v.pos[1]; a.mins+=v.mins;
+    if(!a){a={vs:[],la:0,lo:0,work:false,over:0}; acc.set(v.k,a);}
+    a.vs.push(v); a.la+=v.pos[0]; a.lo+=v.pos[1];
     if(/work/i.test(v.type)) a.work=true;
     if(overnight(v.st,v.en,v.pos,v.off)) a.over++;
   }
-  const H=ST.H.at(ST.dayList[ST.dayList.length-1]);
-  // dwellList 가 시각순이라 vs 의 처음·끝이 그대로 첫 방문·마지막 방문이다
-  return [...acc.values()]
-    .filter(a=>a.days.size>=3)             // 서너 번은 가야 "자주"다
+  const H=ST.H.at(ST.dayList[ST.dayList.length-1]), out={stay:[],pass:[]};
+  for(const a of acc.values()){
+    const pos=[a.la/a.vs.length,a.lo/a.vs.length];
     // 구글이 같은 집을 Home 라벨 없는 placeID 로 한 번 더 적어 두는 일이 있다.
     // 가까이 있으면서 밤을 거의 매번 넘기는 곳은 집이지 들른 곳이 아니다. 실제
     // 값은 집이 밤샘 61%, 나머지 장소는 모두 5% 이하라 절반에서 끊어도 넉넉하다.
-    // 문턱을 더 낮추면 자고 오는 부모님 댁 같은 곳까지 지워진다.
-    .filter(a=>!(a.over>=a.vs.length*.5&&hav(H,[a.la/a.vs.length,a.lo/a.vs.length])<20))
-    .map(a=>{
-      const pos=[a.la/a.vs.length,a.lo/a.vs.length], h=ST.H.at(a.vs[0].d), km=hav(h,pos);
-      return {name:tightName(placeName(pos[0],pos[1]).name), pos,
-              days:a.days.size, visits:a.vs.length, mins:a.mins, work:a.work,
-              where:a.work?'직장':`집에서 ${bearing(h,pos)} ${km<10?km.toFixed(1):Math.round(km)}km`,
-              first:a.vs[0].d, last:a.vs[a.vs.length-1].d, vs:a.vs};
-    })
-    .sort((x,y)=>y.days-x.days||y.visits-x.visits);
+    // 문턱을 더 낮추면 자고 오는 부모님 댁 같은 곳까지 지워진다. 판정은 짧게
+    // 스친 기록까지 합쳐서 한 번만 한다 — 그래야 집이 경유 목록으로 새지 않는다.
+    if(a.over>=a.vs.length*.5&&hav(H,pos)<20) continue;
+    const h=ST.H.at(a.vs[0].d), km=hav(h,pos);
+    const name=tightName(placeName(pos[0],pos[1]).name);
+    const where=a.work?'직장':`집에서 ${bearing(h,pos)} ${km<10?km.toFixed(1):Math.round(km)}km`;
+    // 오래 머문 적도 스친 적도 있는 곳은 양쪽에 다 오른다. 각각 제 기록만 센다.
+    for(const kind of ['stay','pass']){
+      const vs=a.vs.filter(v=>kind==='stay'?v.mins>=FMIN:v.mins<FMIN);
+      if(vs.length<3) continue;            // 서너 번은 가야 "자주"다
+      // dwellList 가 시각순이라 vs 의 처음·끝이 그대로 첫 방문·마지막 방문이다
+      out[kind].push({name,where,pos,work:a.work,vs,
+        visits:vs.length, days:new Set(vs.map(v=>v.d)).size,
+        mins:vs.reduce((t,v)=>t+v.mins,0), first:vs[0].d, last:vs[vs.length-1].d});
+    }
+  }
+  for(const k in out) out[k].sort((x,y)=>y.visits-x.visits||y.days-x.days);
+  return out;
 }
+let FKIND='stay';                          // 'stay' 들른 곳 / 'pass' 스쳐 간 곳
+const freqList=()=>(ST&&ST.freq?ST.freq[FKIND]:[]);
 const FREQN=30;                            // 지도에 얹을 수 — 더 얹으면 점이 서로를 덮는다
+const FLISTN=100;                          // 표에 올릴 수
 
 /* ---------- render ---------- */
 function msg(s,err){$('#status').textContent=s;$('#status').className=err?'err':'';}
@@ -607,6 +625,8 @@ function renderList(){
   $('#thWrap').classList.toggle('hide',MODE==='freq');   // 자주 간 곳은 거리와 무관하다
   syncTileUI();
   $('#cv').classList.toggle('pan',MODE==='freq');
+  $('#freqKind').classList.toggle('hide',MODE!=='freq');
+  $('#freqnote').classList.toggle('hide',MODE!=='freq');
   $('#listTitle').textContent=MODE==='freq'?'자주 간 곳':'여행 목록';
   if(MODE==='freq') return freqTable();
   $('#tbl thead').innerHTML='<tr><th></th><th>기간</th><th>목적지</th><th class="r">박</th><th class="r">최대거리</th></tr>';
@@ -635,19 +655,25 @@ function renderList(){
     MODE==='world'?'해외로 나간 기록이 없습니다.':'기준 거리 내에서 벗어난 일정이 없습니다.'}</td></tr>`;
 }
 
-/* 자주 간 곳 — 여행 기준 거리와 무관하게 며칠에 걸쳐 들렀는지로 줄을 세운다 */
+/* 자주 간 곳 — 여행 기준 거리와 무관하게 몇 번 갔는지로 줄을 세운다 */
 function freqTable(){
-  const F=ST.freq||[];
-  $('#tripCount').textContent=`${F.length}곳`;
-  $('#tbl thead').innerHTML='<tr><th class="r">방문</th><th>장소</th><th class="r">체류</th><th class="r">평균</th><th class="r">합계</th><th class="nw">마지막</th></tr>';
+  const all=freqList(), F=all.slice(0,FLISTN), stay=FKIND==='stay';
+  $('#tripCount').textContent=`${all.length}곳`;
+  $('#tbl thead').innerHTML=`<tr><th class="r">${stay?'방문':'경유'}</th><th>장소</th>
+    <th class="r">날짜</th><th class="r">평균</th><th class="r">합계</th><th class="nw">마지막</th></tr>`;
   $('#tbl tbody').innerHTML=F.map((f,i)=>`<tr data-f="${i}">
-      <td class="r nw">${f.days.toLocaleString()}일</td>
+      <td class="r nw">${f.visits.toLocaleString()}번</td>
       <td><span class="dest">${f.name}</span><div class="via">${f.where}</div></td>
-      <td class="r">${f.visits.toLocaleString()}번</td>
+      <td class="r nw">${f.days.toLocaleString()}일</td>
       <td class="r nw">${durStr(f.mins/f.visits)}</td>
       <td class="r nw">${durStr(f.mins)}</td>
       <td class="nw">${dstr(f.last)}</td></tr>`).join('')
-    ||'<tr><td colspan="6" style="color:var(--ink2)">되풀이해 들른 곳이 없습니다.</td></tr>';
+    ||`<tr><td colspan="6" style="color:var(--ink2)">${
+        stay?'30분 넘게 되풀이해 머문 곳이 없습니다.':'짧게 되풀이해 스친 곳이 없습니다.'}</td></tr>`;
+  $('#freqnote').textContent=
+    (stay?`한 번에 ${FMIN}분 넘게 머문 것만 셉니다. 짧게 스친 곳은 경유에 있습니다.`
+        : `한 번에 ${FMIN}분이 안 되게 머문 것만 셉니다. 오래 머문 곳은 방문에 있습니다.`)
+    +(all.length>F.length?` 많이 간 순으로 ${F.length}곳까지 보여줍니다 (총 ${all.length}곳).`:'');
 }
 
 /* "충청남도 천안시 동남구" -> "천안시" — a bare 구 name is not a destination */
@@ -719,7 +745,7 @@ let MK=[], FVIEW=null, FMV=null;   // 자주 간 곳 지도에서 손으로 잡�
 function draw(){
   const cv=$('#cv'), W=cv.clientWidth||900;
   // 자주 간 곳은 여행이 아니라 되풀이해 들른 지점을 같은 국내 지도 위에 얹는다
-  const FQ=MODE==='freq'?(ST.freq||[]).slice(0,FREQN):null;
+  const FQ=MODE==='freq'?freqList().slice(0,FREQN):null;
   const Hpx=MODE==='world'?Math.round(Math.min(W*0.5,520)):560;
   const dpr=devicePixelRatio||1;
   cv.width=W*dpr; cv.height=Hpx*dpr; cv.style.height=Hpx+'px';
@@ -766,11 +792,11 @@ function draw(){
   // 범위를 좁힌 만큼 밖으로 나간 곳이 생긴다. 말없이 빼면 다 보이는 줄 안다.
   // 말없이 줄이면 다 보이는 줄 안다. 확대해서 밀려난 것과 애초에 안 얹은 것은
   // 이유가 달라서 따로 적는다.
-  const cut=FQ?ST.freq.length-FQ.length:0, said=[];
+  const cut=FQ?freqList().length-FQ.length:0, said=[];
   if(off) said.push(`화면 밖 ${off}곳`);
   if(cut) said.push(`자주 간 순으로 ${FQ.length}곳만 얹음`);
   $('#mapnote').textContent=said.length
-    ? `${said.join(' · ')} — 아래 목록에는 ${ST.freq.length}곳이 다 있습니다.` : '';
+    ? `${said.join(' · ')} — 아래 목록을 보세요.` : '';
   const hx=X(h[0],h[1]),hy=Y(h[0],h[1]);
   // 여행은 집에서 뻗어 나간 선으로 읽히지만, 자주 간 곳은 한 번의 나들이가
   // 아니라 되풀이한 지점이라 선을 긋지 않는다
@@ -1120,7 +1146,7 @@ function openPlace(f){
   CUR={kind:'place',a:f.first,b:f.last,places:[placeName(f.pos[0],f.pos[1])],vs:f.vs};
   STAY=[]; DW=f.vs; SEL=null; VIEW=null;
   $('#modalTitle').innerHTML=
-    `<span class="d">${f.name}</span><span class="m">${f.days.toLocaleString()}일 · ${f.visits.toLocaleString()}번</span>
+    `<span class="d">${f.name}</span><span class="m">${f.visits.toLocaleString()}번 · ${f.days.toLocaleString()}일</span>
      <div class="p">${f.where}</div>
      <div class="s">${dstr(f.first)} ~ ${dstr(f.last)} · 한 번에 평균 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·
        ${f.pos[0].toFixed(5)}, ${f.pos[1].toFixed(5)}</div>`;
@@ -1179,6 +1205,17 @@ function setMode(m){
 $('#tabKr').onclick=()=>setMode('kr');
 $('#tabW').onclick=()=>setMode('world');
 $('#tabF').onclick=()=>setMode('freq');
+/* 30분은 들른 것과 지나간 것을 가르는 선이다. 둘을 한 표에 섞으면 신호등에
+   걸린 사거리가 단골 가게보다 위로 올라온다. */
+function setKind(k){
+  if(FKIND===k) return;
+  FKIND=k; FVIEW=null;                     // 다른 목록이면 지도도 자동 맞춤부터
+  $('#fStay').classList.toggle('on',k==='stay');
+  $('#fPass').classList.toggle('on',k==='pass');
+  renderList(); draw();
+}
+$('#fStay').onclick=()=>setKind('stay');
+$('#fPass').onclick=()=>setKind('pass');
 addEventListener('resize',()=>{if(ST)draw();});
 
 $('#cv').onmousemove=e=>{
@@ -1196,7 +1233,7 @@ $('#cv').onmousemove=e=>{
       ? `<b>${hit.f.name} · ${hit.f.where}</b><br>${hit.f.days.toLocaleString()}일 · ${hit.f.visits.toLocaleString()}번 · 마지막 ${dstr(hit.f.last)}`
       : `<b>${hit.t.places.map(p=>p.name).join(' · ')}</b><br>
          ${dstr(hit.t.a)} ~ ${dstr(hit.t.b)} · ${hit.t.nights}박 · ${Math.round(hit.t.km)}km`;
-    const sel=hit.f?`#tbl tr[data-f="${ST.freq.indexOf(hit.f)}"]`:`#tbl tr[data-i="${ST.trips.indexOf(hit.t)}"]`;
+    const sel=hit.f?`#tbl tr[data-f="${freqList().indexOf(hit.f)}"]`:`#tbl tr[data-i="${ST.trips.indexOf(hit.t)}"]`;
     const row=document.querySelector(sel);
     if(row) row.classList.add('hl');
   } else tip.style.display='none';
@@ -1206,8 +1243,8 @@ $('#cv').onmouseleave=()=>{$('#tip').style.display='none';
 
 $('#dl').onclick=()=>{
   const rows=MODE==='freq'
-    ? [['지역','집에서','방문일수','체류횟수','평균체류분','합계시간','처음','마지막','위도','경도']].concat(
-        (ST.freq||[]).map(f=>[f.name,f.where,f.days,f.visits,Math.round(f.mins/f.visits),
+    ? [['지역','집에서','횟수','날짜수','평균체류분','합계시간','처음','마지막','위도','경도']].concat(
+        freqList().map(f=>[f.name,f.where,f.visits,f.days,Math.round(f.mins/f.visits),
           Math.round(f.mins/60),dstr(f.first),dstr(f.last),f.pos[0].toFixed(5),f.pos[1].toFixed(5)]))
     : [['시작','종료','박','최대거리km','목적지','경유','해외']].concat(
         ST.trips.map(t=>[dstr(t.a),dstr(t.b),t.nights,Math.round(t.km),
@@ -1215,13 +1252,13 @@ $('#dl').onclick=()=>{
   const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download=MODE==='freq'?'places.csv':'trips.csv'; a.click();
+  a.download=MODE==='freq'?(FKIND==='stay'?'places-visit.csv':'places-pass.csv'):'trips.csv'; a.click();
 };
 
 /* 표 행과 지도 마커 둘 다 상세를 연다 */
 $('#tbl').onclick=e=>{
   const tr=e.target.closest('tr[data-i],tr[data-f]'); if(!tr) return;
-  if(tr.dataset.f!==undefined) openPlace(ST.freq[+tr.dataset.f]);
+  if(tr.dataset.f!==undefined) openPlace(freqList()[+tr.dataset.f]);
   else openTrip(ST.trips[+tr.dataset.i]);
 };
 $('#cv').onclick=e=>{
