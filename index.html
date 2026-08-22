@@ -85,7 +85,9 @@ button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight
 #cv{width:100%;display:block;border-radius:8px;background:var(--bg);border:1px solid var(--line);cursor:crosshair}
 #tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;
   padding:6px 9px;border-radius:5px;display:none;z-index:9;max-width:220px;line-height:1.45}
-.hide{display:none}
+/* id 로 display 를 준 요소(#legs 등)는 클래스 하나로는 못 가린다 — 우선순위가
+   낮아 그대로 보인다. 감추는 쪽이 언제나 이기게 못을 박는다. */
+.hide{display:none !important}
 .res{font-size:14px;padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:12px;flex-wrap:wrap}
 .res:last-child{border:0}
 .res b{min-width:190px;font-variant-numeric:tabular-nums;font-weight:600}
