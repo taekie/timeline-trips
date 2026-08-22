@@ -115,7 +115,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 <div class="wrap">
 <h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
 <p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
-모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세와 자주 간 곳의 배경 지도는 외부에서 지도 타일을 받아오므로 보고 있는 지역의 타일 좌표가 그 서버에 전달됩니다. 여행 상세의 <b>배경 지도</b> 버튼으로 끄면 두 지도 모두 그마저 받지 않습니다.</p>
+모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세와 자주 간 곳 지도는 OpenStreetMap 타일을 배경으로 깔기 때문에, 그 두 지도를 여는 동안에는 보고 있는 지역의 타일 좌표가 타일 서버에 전달됩니다. 위치 기록 자체는 어디로도 나가지 않습니다.</p>
 
 <div id="drop">
   <b>location-history.json 을 여기에 끌어다 놓으세요</b>
@@ -178,13 +178,12 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
   <div id="modalBox">
     <div id="modalHead">
       <div id="modalTitle"></div>
-      <button id="tiles">배경 지도</button>
       <button id="modalClose">닫기</button>
     </div>
     <canvas id="mcv"></canvas>
     <div class="hint" id="mapLegend"></div>
     <div class="hint" id="mapHint">휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로</div>
-    <div id="attr" class="hide">지도 데이터 ©
+    <div id="attr">지도 데이터 ©
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 ©
       <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a></div>
     <div id="days"></div>
@@ -568,9 +567,7 @@ const FLISTN=100;                          // 표에 올릴 수
 function msg(s,err){$('#status').textContent=s;$('#status').className=err?'err':'';}
 const fmt=d=>dstr(d).slice(5).replace('-','.');   // 연도는 별도 열이라 월.일만 (0 패딩 유지 — 열 정렬)
 
-let TINIT=false;
 async function render(){
-  if(!TINIT){TINIT=true; TILES=prefGet('tt.tiles')!=='0';}   // 명시적으로 끈 적이 없으면 켠다
   const S=ST, TH=+$('#th').value;
   $('#thLbl').textContent=TH;
   const T=trips(S,TH);
@@ -623,8 +620,8 @@ async function render(){
    지도 마커와 표 행이 서로를 찾는다. */
 function renderList(){
   $('#thWrap').classList.toggle('hide',MODE==='freq');   // 자주 간 곳은 거리와 무관하다
-  syncTileUI();
   $('#cv').classList.toggle('pan',MODE==='freq');
+  $('#attrMain').classList.toggle('hide',MODE!=='freq');   // 출처는 타일이 보이는 탭에만
   $('#freqKind').classList.toggle('hide',MODE!=='freq');
   $('#freqnote').classList.toggle('hide',MODE!=='freq');
   $('#listTitle').textContent=MODE==='freq'?'자주 간 곳':'여행 목록';
@@ -761,7 +758,7 @@ function draw(){
     FMV=V;
     const wl=lo=>V.wrap&&lo<0?lo+360:lo;
     X=(la,lo)=>merc(la,wl(lo),V.z)[0]+V.ox; Y=(la,lo)=>merc(la,wl(lo),V.z)[1]+V.oy;
-    drawBackdrop(g,V,W,Hpx,X,Y,new Set([HOME_CC]));
+    drawTiles(g,V,W,Hpx);
   } else {
     const [l,b,r,t]=MODE==='world'?BOUNDS.world:localBounds();
     // uniform scale so the map keeps its shape, then centre it in the canvas
@@ -860,14 +857,11 @@ function tripDays(t){
   return out;
 }
 
-/* ---------- 배경 타일 (옵트인) ----------
-   기본은 꺼짐. 켜야만 요청이 나간다. localStorage 와 Image 는 test.js 의
+/* ---------- 배경 타일 ----------
+   상세 지도와 자주 간 곳 지도는 늘 이 타일 위에 그린다. Image 는 test.js 의
    스텁 컨텍스트에 없으므로 반드시 함수 안에서만 건드린다. */
-let TILES=false;
 const TILEC=new Map();
 let TRAF=0;
-function prefGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
-function prefSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 
 /* 타일 URL 은 정수 z 만 받지만, 받아온 타일을 소수 배율로 그리면 연속 확대가 된다.
    레벨을 통째로 갈아끼우면 배율이 2배씩 튀어 급하게 느껴진다. */
@@ -892,27 +886,6 @@ function drawTiles(g,V,W,H){
     }
     // 소수 배율에서 타일 사이에 실금이 생기지 않게 반 픽셀 겹쳐 그린다
     if(im.complete&&im.naturalWidth) g.drawImage(im,x*T+V.ox,y*T+V.oy,T+.5,T+.5);
-  }
-}
-
-/* 배경. 기본은 벡터, 켜면 타일. */
-function drawBackdrop(g,V,W,H,X,Y,ccs){
-  if(TILES) return drawTiles(g,V,W,H);
-  if(!ccs){
-    ccs=new Set(CUR.places.map(p=>p.cc).filter(Boolean));
-    if(HOME_CC) ccs.add(HOME_CC);
-  }
-  g.lineWidth=.6; g.strokeStyle='#fff'; g.fillStyle='#eceff3';
-  for(const cc of ccs) for(const f of (REG.get(cc)||[])){
-    for(let k=0;k<f[1].length;k++){
-      const bb=f[3][k];                       // [최소경도,최소위도,최대경도,최대위도]
-      const x0=X(bb[3],bb[0]), y0=Y(bb[3],bb[0]), x1=X(bb[1],bb[2]), y1=Y(bb[1],bb[2]);
-      if(x1<0||x0>W||y1<0||y0>H) continue;    // 화면 밖 링은 건너뛴다
-      const ring=f[1][k];
-      g.beginPath(); g.moveTo(X(ring[1],ring[0]),Y(ring[1],ring[0]));
-      for(let i=2;i<ring.length;i+=2) g.lineTo(X(ring[i+1],ring[i]),Y(ring[i+1],ring[i]));
-      g.closePath(); g.fill(); g.stroke();
-    }
   }
 }
 
@@ -941,7 +914,7 @@ function drawDetail(){
   const wl=lo=>V.wrap&&lo<0?lo+360:lo;
   const X=(la,lo)=>merc(la,wl(lo),V.z)[0]+V.ox, Y=(la,lo)=>merc(la,wl(lo),V.z)[1]+V.oy;
 
-  drawBackdrop(g,V,W,H,X,Y);
+  drawTiles(g,V,W,H);
 
   // 장소 상세는 그 곳에 간 날의 이동 경로를 겹쳐 옅게 깐다. 몇 백 번이 포개지면
   // 늘 다니는 길이 저절로 진해진다. 화면 밖은 잘려서 접근로만 남는다.
@@ -969,7 +942,11 @@ function drawDetail(){
     };
     // 오가는 길이 겹치는 구간에서는 나중에 그린 오는 길이 위로 온다.
     // 길이 갈라지는 데서는 두 색이 그대로 남아 어느 쪽으로 오가는지 읽힌다.
-    g.globalAlpha=.13; g.lineWidth=1.2;
+    // 한 획의 진하기를 날 수로 나눈다. 고정값을 쓰면 300번 간 곳은 죄다 겹쳐
+    // 덩어리가 되고 스무 번 간 곳은 거의 안 보인다. 늘 다니는 길이 진해지는 건
+    // 겹쳐 그린 결과여야지 획 자체가 진해서는 아니다. 하한이 있어야 백 번 넘게
+    // 간 곳도 형체가 남는다.
+    g.globalAlpha=Math.min(.5,Math.max(.04,3/byDay.size)); g.lineWidth=1.2;
     g.strokeStyle=GO;   for(const[d,r]of byDay) leg(d,-Infinity,r.st);
     g.strokeStyle=BACK; for(const[d,r]of byDay) leg(d,r.en,Infinity);
     g.globalAlpha=1;
@@ -1149,9 +1126,9 @@ function openTrip(t){
   $('#mapLegend').textContent='';
   $('#modal').classList.add('open');
   buildDays(t);
-  // applyTiles 가 drawDetail 을 부른다 — 모달이 보이고 SEL 이 리셋된 뒤여야
-  // clientWidth 와 fitPts 가 이 여행 기준으로 나온다. 순서를 바꾸면 안 된다.
-  applyTiles(prefGet('tt.tiles')!=='0');   // 명시적으로 끈 적이 없으면 켠다
+  // 모달이 보이고 SEL 이 리셋된 뒤여야 clientWidth 와 fitPts 가 이 여행 기준으로
+  // 나온다. 순서를 바꾸면 안 된다.
+  drawDetail();
 }
 function setHint(){
   $('#mapHint').textContent=matchMedia('(pointer:coarse)').matches
@@ -1175,7 +1152,7 @@ function openPlace(f){
      &nbsp;— 도착 전과 출발 뒤의 그날 경로입니다`;
   setHint();
   $('#modal').classList.add('open');
-  applyTiles(prefGet('tt.tiles')!=='0');
+  drawDetail();
 }
 function closeTrip(){CUR=null;$('#modal').classList.remove('open');}
 
@@ -1395,23 +1372,6 @@ $('#mcv').onmousemove=e=>{
 };
 $('#mcv').onmouseleave=()=>{$('#tip').style.display='none';};
 
-/* 여행을 열 때는 저장된 선택을 반영만(applyTiles) 하고, 누를 때만 기록한다(setTiles).
-   반영이 기록까지 하면 여는 것만으로 키가 생겨 "끈 적 없음"과 "꺼 둠"을 구분할 수 없다. */
-/* 자주 간 곳 지도에는 따로 버튼을 두지 않는다. 상세의 배경 지도 설정을 그대로
-   따르므로 끄고 싶으면 거기서 끄면 된다. */
-function syncTileUI(){
-  $('#tiles').classList.toggle('on',TILES);
-  $('#attr').classList.toggle('hide',!TILES);
-  $('#attrMain').classList.toggle('hide',!TILES||MODE!=='freq');
-}
-function applyTiles(v){
-  TILES=v;
-  syncTileUI();
-  if(ST&&ST.trips) draw();
-  drawDetail();
-}
-function setTiles(v){ prefSet('tt.tiles',v?'1':'0'); applyTiles(v); }
-$('#tiles').onclick=()=>setTiles(!TILES);
 </script>
 </body>
 </html>
