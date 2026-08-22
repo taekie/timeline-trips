@@ -238,6 +238,7 @@ let HOME_CC='';             // 거주국은 지명에서 국가명을 뗀다
    테두리 상자는 받아온 뒤에 계산해 넣는데, 번호 자리를 또 쓰면 언젠가 부딪히므로
    이름 있는 칸에 둔다. */
 const RINGS=2;
+const DATA='';                       // 다른 말로 찍은 판은 하위 폴더에 놓이므로 '../' 가 된다
 let LANG='ko';
 const nameOf=f=>(LANG==='en'&&f[1])||f[0];
 function addBBox(feats){
@@ -246,7 +247,7 @@ function addBBox(feats){
     return [a,b,c,d];});
   return feats;
 }
-fetch('geo.json?v=4').then(r=>r.json()).then(g=>{GEO=g; addBBox(g.world);})
+fetch(DATA+'geo.json?v=4').then(r=>r.json()).then(g=>{GEO=g; addBBox(g.world);})
   .catch(()=>msg('경계 데이터(geo.json)를 불러오지 못했습니다.',1));
 
 /* 좌표가 떨어진 나라의 지역 파일만 받아온다. 한 번 받으면 캐시된다. */
@@ -256,7 +257,7 @@ async function ensureRegions(ccs){
   const kb=Math.round(want.reduce((a,c)=>a+GEO.regions[c],0)/1024);
   msg(`${want.join(', ')} 지역 경계 ${kb}KB 받는 중…`);
   await Promise.all(want.map(cc=>
-    fetch(`regions/${cc}.json?v=4`).then(r=>r.json())
+    fetch(`${DATA}regions/${cc}.json?v=4`).then(r=>r.json())
       .then(f=>REG.set(cc,addBBox(f)))
       .catch(()=>REG.set(cc,[]))));       // 없으면 도시 인덱스로 대체된다
 }
@@ -1245,7 +1246,7 @@ $('#file').onchange=e=>{if(e.target.files[0]) load(e.target.files[0]);};
 /* 기록이 없어도 둘러볼 수 있게 지어낸 2년치를 얹는다. 실존 인물의 기록이 아니다. */
 $('#demo').onclick=()=>{
   msg('샘플 데이터 받는 중…');
-  fetch('sample.json').then(r=>r.ok?r.blob():Promise.reject(new Error('샘플을 받지 못했습니다.')))
+  fetch(DATA+'sample.json').then(r=>r.ok?r.blob():Promise.reject(new Error('샘플을 받지 못했습니다.')))
     .then(bl=>{const f=new File([bl],'sample.json',{type:'application/json'}); load(f);})
     .catch(err=>msg(err.message,1));
 };
