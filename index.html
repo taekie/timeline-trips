@@ -29,7 +29,10 @@ p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
 #drop.over{border-color:var(--blue);background:var(--blue-l)}
 #drop b{display:block;font-size:16px;margin-bottom:6px}
 #drop span{color:var(--ink2);font-size:13px;display:block;line-height:1.6}
-#drop a{color:var(--blue-d);font-weight:600}
+/* 기록 파일이 없는 사람이 첫 화면에서 막히지 않게, 샘플은 링크가 아니라 버튼으로 */
+#demo{margin-top:16px;font-size:14px;font-weight:600;padding:10px 20px;
+  background:var(--blue);border-color:var(--blue);color:#fff}
+#demo:hover{background:var(--blue-d);border-color:var(--blue-d)}
 #drop span kbd{font:inherit;color:var(--ink);font-weight:600}
 #status{margin-top:14px;font-size:13px;color:var(--ink2);min-height:20px}
 #status.err{color:#dc2626}
@@ -126,7 +129,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
     <span>또는 클릭해서 선택. 내보내는 곳이 기기마다 다릅니다.</span>
     <span><kbd>iPhone</kbd> Google 지도 앱 → 프로필 → ⋯ → 위치 및 개인정보 설정 → 타임라인 데이터 내보내기 → 파일에 저장 (location-history.json)</span>
     <span><kbd>Android</kbd> 휴대폰 설정 → 위치 → 타임라인 → 타임라인 데이터 내보내기 (Timeline.json)</span>
-    <span>기록이 없어도 <a href="#" id="demo">샘플 데이터로 둘러보기</a></span>
+    <button id="demo">샘플 데이터로 둘러보기</button>
   </div>
   <input type="file" id="file" accept=".json,application/json" class="hide">
 </div>
@@ -536,14 +539,20 @@ function frequent(){
   const acc=new Map();
   for(const v of dwellList((d,p)=>hav(ST.H.at(d),p)>=.2)){   // 집 자체는 뺀다
     let a=acc.get(v.k);
-    if(!a){a={vs:[],la:0,lo:0,work:false,over:0}; acc.set(v.k,a);}
-    a.vs.push(v); a.la+=v.pos[0]; a.lo+=v.pos[1];
+    if(!a){a={vs:[],at:new Map(),work:false,over:0}; acc.set(v.k,a);}
+    a.vs.push(v);
+    const ak=v.pos[0]+','+v.pos[1];          // 같은 장소도 좌표가 몇 가지로 적힌다
+    a.at.set(ak,(a.at.get(ak)||0)+1);
     if(/work/i.test(v.type)) a.work=true;
     if(overnight(v.st,v.en,v.pos,v.off)) a.over++;
   }
   const H=ST.H.at(ST.dayList[ST.dayList.length-1]), out={stay:[],pass:[]};
   for(const a of acc.values()){
-    const pos=[a.la/a.vs.length,a.lo/a.vs.length];
+    // 평균이 아니라 가장 자주 적힌 좌표를 쓴다. 116곳 중 한 곳은 같은 placeID 로
+    // 17km 떨어진 좌표가 섞여 있어, 평균을 내면 아무 데도 아닌 허공에 찍힌다.
+    let bk=null,bn=-1;
+    for(const[k,n]of a.at) if(n>bn){bn=n;bk=k;}
+    const pos=bk.split(',').map(Number);
     // 구글이 같은 집을 Home 라벨 없는 placeID 로 한 번 더 적어 두는 일이 있다.
     // 가까이 있으면서 밤을 거의 매번 넘기는 곳은 집이지 들른 곳이 아니다. 실제
     // 값은 집이 밤샘 61%, 나머지 장소는 모두 5% 이하라 절반에서 끊어도 넉넉하다.
@@ -911,7 +920,10 @@ function drawDetail(){
   // 장소 상세는 몇 해에 걸친 방문을 한 화면에 얹으므로 날짜별 경로를 긋지 않는다
   const place=t.kind==='place';
   const DD=place?[]:tripDays(t);
-  const all=place?t.vs.map(v=>v.pos):[].concat(...DD.map(r=>r.pts));
+  // 멀리 떨어진 좌표가 섞인 장소가 있어, 화면은 대표 좌표 둘레로 맞춘다.
+  // 그러지 않으면 지도가 두 지점 사이 수십 km 를 담느라 아무것도 안 보인다.
+  const near=place?t.vs.map(v=>v.pos).filter(p=>hav(t.pos,p)<2):null;
+  const all=place?(near.length?near:[t.pos]):[].concat(...DD.map(r=>r.pts));
   // 날짜를 고르면 그 날에 맞춰 다시 확대한다. 전체 보기로는 도시 안 이동이 안 보인다.
   const fitPts=(!place&&SEL!=null&&(ST.days.get(SEL)||[]).length)?ST.days.get(SEL):all;
   // 손으로 확대·이동했으면 그 뷰를 쓴다. 타일에 상호·도로명이 있어서
@@ -954,10 +966,14 @@ function drawDetail(){
     // 덩어리가 되고 스무 번 간 곳은 거의 안 보인다. 늘 다니는 길이 진해지는 건
     // 겹쳐 그린 결과여야지 획 자체가 진해서는 아니다. 하한이 있어야 백 번 넘게
     // 간 곳도 형체가 남는다.
-    g.globalAlpha=Math.min(.5,Math.max(.04,3/byDay.size)); g.lineWidth=1.2;
-    g.strokeStyle=GO;   for(const[d,r]of byDay) leg(d,-Infinity,r.st);
-    g.strokeStyle=BACK; for(const[d,r]of byDay) leg(d,r.en,Infinity);
-    g.globalAlpha=1;
+    // 점선은 길이의 절반만 칠하므로 실선일 때보다 한 획을 조금 더 진하게 잡는다
+    g.globalAlpha=Math.min(.6,Math.max(.055,4/byDay.size)); g.lineWidth=1.6;
+    g.setLineDash([5,5]);
+    g.strokeStyle=GO;   g.lineDashOffset=0;
+    for(const[d,r]of byDay) leg(d,-Infinity,r.st);
+    g.strokeStyle=BACK; g.lineDashOffset=5;
+    for(const[d,r]of byDay) leg(d,r.en,Infinity);
+    g.setLineDash([]); g.lineDashOffset=0; g.globalAlpha=1;
   }
 
   // 날짜별 경로 — 첫날이 가장 옅고 마지막 날이 가장 진하다
@@ -1147,7 +1163,7 @@ function setHint(){
 /* 자주 간 곳 상세. 지명이 시·군·구 단위라 "강남구 467일"만으로는 어디인지
    모른다. 그 안 어느 지점을 되풀이해 들렀는지를 체류 점으로 펼쳐 보인다. */
 function openPlace(f){
-  CUR={kind:'place',a:f.first,b:f.last,places:[placeName(f.pos[0],f.pos[1])],vs:f.vs};
+  CUR={kind:'place',a:f.first,b:f.last,places:[placeName(f.pos[0],f.pos[1])],pos:f.pos,vs:f.vs};
   STAY=[]; DW=f.vs; SEL=null; VIEW=null;
   $('#modalTitle').innerHTML=
     `<span class="d">${f.name}</span><span class="m">${f.visits.toLocaleString()}번 · ${f.days.toLocaleString()}일</span>
