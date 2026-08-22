@@ -1017,7 +1017,7 @@ $('#days').onclick=e=>{
   drawDetail();
 };
 
-/* 휠로 확대, 끌어서 이동, 더블클릭으로 자동 맞춤 복귀 */
+/* 휠·핀치로 확대, 끌어서 이동, 더블클릭·두 번 두드리기로 자동 맞춤 복귀 */
 $('#mcv').onwheel=e=>{
   if(!CUR||!MV) return;
   e.preventDefault();
@@ -1034,19 +1034,61 @@ $('#mcv').onwheel=e=>{
   VIEW={z,wrap:MV.wrap,ox:sx-(sx-MV.ox)*k,oy:sy-(sy-MV.oy)*k};
   drawDetail();
 };
-let DRAG=null;
-$('#mcv').onmousedown=e=>{
+/* 하나로 끌면 이동, 둘로 벌리면 확대. 마우스도 포인터 이벤트로 같은 길을 탄다.
+   두 손가락 중간점 아래의 지점이 제자리에 남도록 배율과 오프셋을 함께 잡는다. */
+let DRAG=null;                          // 끄는 중이면 툴팁을 접어 둔다
+const PTR=new Map();                    // 화면에 닿아 있는 포인터
+let GES=null, TAPT=0, TAPOK=false;
+function mpt(e){const b=$('#mcv').getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top};}
+/* 손가락이 늘거나 줄 때마다 지금 뷰를 기준으로 다시 잡는다.
+   그러지 않으면 한 손을 떼는 순간 지도가 튄다. */
+function regrip(){
+  const p=[...PTR.values()];
+  if(!p.length||!MV){GES=null;return;}
+  const base={z:MV.z,ox:MV.ox,oy:MV.oy,wrap:MV.wrap};
+  if(p.length===1){GES={n:1,cx:p[0].x,cy:p[0].y,base};return;}
+  GES={n:2,cx:(p[0].x+p[1].x)/2,cy:(p[0].y+p[1].y)/2,
+       d:Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)||1,base};
+}
+$('#mcv').onpointerdown=e=>{
   if(!CUR||!MV) return;
   e.preventDefault();
-  DRAG={x:e.clientX,y:e.clientY,ox:MV.ox,oy:MV.oy,z:MV.z,wrap:MV.wrap};
+  try{$('#mcv').setPointerCapture(e.pointerId);}catch(err){}
+  PTR.set(e.pointerId,mpt(e));
+  TAPOK=PTR.size===1;                   // 두 번째 손가락이 오면 두드림이 아니다
+  regrip();
+  DRAG=true;
   $('#mcv').classList.add('drag');
 };
-addEventListener('mousemove',e=>{
-  if(!DRAG) return;
-  VIEW={z:DRAG.z,wrap:DRAG.wrap,ox:DRAG.ox+(e.clientX-DRAG.x),oy:DRAG.oy+(e.clientY-DRAG.y)};
+$('#mcv').onpointermove=e=>{
+  if(!PTR.has(e.pointerId)||!GES) return;
+  PTR.set(e.pointerId,mpt(e));
+  const p=[...PTR.values()], B=GES.base;
+  if(GES.n===1&&p.length===1){
+    if(Math.hypot(p[0].x-GES.cx,p[0].y-GES.cy)>12) TAPOK=false;
+    VIEW={z:B.z,wrap:B.wrap,ox:B.ox+(p[0].x-GES.cx),oy:B.oy+(p[0].y-GES.cy)};
+  }else if(GES.n===2&&p.length>=2){
+    const d=Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)||1;
+    const cx=(p[0].x+p[1].x)/2, cy=(p[0].y+p[1].y)/2;
+    const z=Math.max(0,Math.min(ZMAX,B.z+Math.log2(d/GES.d)));
+    const k=Math.pow(2,z-B.z);          // 배율을 잘랐을 수 있으니 z 차이에서 다시 뽑는다
+    VIEW={z,wrap:B.wrap,ox:cx-(GES.cx-B.ox)*k,oy:cy-(GES.cy-B.oy)*k};
+  }else return;
   drawDetail();
-});
-addEventListener('mouseup',()=>{DRAG=null;$('#mcv').classList.remove('drag');});
+};
+function liftPtr(e){
+  if(!PTR.delete(e.pointerId)) return;
+  regrip();
+  if(!PTR.size){DRAG=null;$('#mcv').classList.remove('drag');}
+}
+$('#mcv').onpointerup=e=>{
+  const solo=PTR.size===1;
+  liftPtr(e);
+  // 손가락에는 더블클릭이 오지 않는다. 두 번 두드리면 자동 맞춤으로 돌린다
+  if(e.pointerType!=='touch'||!solo||!TAPOK) return;
+  if(e.timeStamp-TAPT<300){TAPT=0;VIEW=null;drawDetail();} else TAPT=e.timeStamp;
+};
+$('#mcv').onpointercancel=liftPtr;
 $('#mcv').ondblclick=()=>{VIEW=null;drawDetail();};
 /* 체류 점은 크기로만 시간을 나타내므로 올려두면 시각과 머문 시간을 보여준다 */
 $('#mcv').onmousemove=e=>{
