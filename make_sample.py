@@ -91,14 +91,24 @@ def move(start, minutes, a, b, via=None, n=5, jitter=0.0007, tz=KST):
 
 def at(day, h, m=0, tz=KST): return datetime(day.year, day.month, day.day, h, m, tzinfo=tz)
 
-TRIPS = [  # (첫날, 마지막밤, 숙소, 볼거리, 시간대, placeID)
-    (datetime(2024,5,3),  datetime(2024,5,5),  (37.75190,128.87610), (37.79500,128.91600), KST, 'sample-gangneung'),
-    (datetime(2024,5,8),  datetime(2024,5,9),  (34.76040,127.66220), (34.74100,127.73400), KST, 'sample-yeosu'),
-    (datetime(2024,8,10), datetime(2024,8,13), (33.49960,126.53120), (33.24970,126.36090), KST, 'sample-jeju'),
-    (datetime(2025,2,14), datetime(2025,2,17), (35.67620,139.65030), (35.71010,139.81070), KST, 'sample-tokyo'),
-    (datetime(2025,6,12), datetime(2025,6,19), (37.78780,-122.40750), (37.80870,-122.40980), PDT, 'sample-sf'),
-    (datetime(2025,9,20), datetime(2025,9,22), (35.17960,129.07560), (35.15870,129.16030), KST, 'sample-busan'),
-    (datetime(2025,11,5), datetime(2025,11,9), (13.75630,100.50180), (13.72460,100.49300), ICT, 'sample-bangkok'),
+# 하루에 한 곳만 들르는 여행은 없다. 날마다 두세 곳씩 돌게 해야 상세 지도에
+# 그날의 동선이 보인다. (첫날, 마지막밤, 숙소, 볼거리 여럿, 시간대, placeID)
+TRIPS = [
+    (datetime(2024,5,3),  datetime(2024,5,5),  (37.75190,128.87610),
+     [(37.79550,128.89600),(37.77300,128.94700),(37.77900,128.87800)], KST, 'sample-gangneung'),
+    (datetime(2024,5,8),  datetime(2024,5,9),  (34.76040,127.66220),
+     [(34.74200,127.75400),(34.59900,127.81800)], KST, 'sample-yeosu'),
+    (datetime(2024,8,10), datetime(2024,8,13), (33.49960,126.53120),
+     [(33.45800,126.94200),(33.24970,126.56090),(33.39400,126.24000)], KST, 'sample-jeju'),
+    (datetime(2025,2,14), datetime(2025,2,17), (35.67620,139.65030),
+     [(35.71480,139.79670),(35.65800,139.70160),(35.63000,139.77600),(35.71380,139.77700)], KST, 'sample-tokyo'),
+    (datetime(2025,6,12), datetime(2025,6,19), (37.78780,-122.40750),
+     [(37.80800,-122.41770),(37.81990,-122.47830),(37.75440,-122.44770),
+      (37.75960,-122.42690),(37.79550,-122.39370)], PDT, 'sample-sf'),
+    (datetime(2025,9,20), datetime(2025,9,22), (35.17960,129.07560),
+     [(35.15870,129.16030),(35.09750,129.01070),(35.15330,129.11860)], KST, 'sample-busan'),
+    (datetime(2025,11,5), datetime(2025,11,9), (13.75630,100.50180),
+     [(13.75000,100.49130),(13.75900,100.49700),(13.79990,100.55000)], ICT, 'sample-bangkok'),
 ]
 
 def trip_on(day):
@@ -112,17 +122,30 @@ day = DAY0
 while day <= DAY1:
     t = trip_on(day)
     if t:
-        a, b, hotel, spot, tz, pid = t
-        if day.date() == a.date():                       # 떠나는 날
-            move(at(day,9), 60, HOME, hotel, tz=KST, n=10, jitter=0.004)
-            visit(at(day,12,tz=tz), 240, spot, pid+'-spot', 'Unknown', tz=tz)
-        elif day.date() == (b+timedelta(days=1)).date():  # 돌아오는 날
+        a, b, hotel, spots, tz, pid = t
+        i = (day - a).days
+        seen = None
+        if day.date() == (b+timedelta(days=1)).date():    # 돌아오는 날
             # 돌아오는 자취는 집 시간으로 적는다 — 현지 시간으로 두면 날짜변경선을
             # 건널 때 하루 넘어가서 0박짜리 유령 여행이 하나 더 생긴다
             move(at(day,15), 60, hotel, HOME, n=10, jitter=0.004)
             visit(at(day,22,30), 540, HOME)               # 그 밤은 집에서 잔다
-        else:
-            visit(at(day,10,tz=tz), 300, spot, pid+'-spot', 'Unknown', tz=tz)
+            day += timedelta(days=1); continue
+        if day.date() == a.date():                        # 떠나는 날 — 도착하고 한 곳만
+            move(at(day,9), 60, HOME, hotel, tz=KST, n=10, jitter=0.004)
+            seen, cur = spots[:1], at(day,14,tz=tz)
+        else:                                             # 날마다 도는 곳 수를 바꾼다
+            k = min(len(spots), 2 + ((i+1) % 3))
+            seen = [spots[(i*2+j) % len(spots)] for j in range(k)]
+            cur = at(day,10,tz=tz)
+        prev = hotel
+        for sp in seen:
+            move(cur, 25, prev, sp, tz=tz, n=5, jitter=0.0012)
+            cur += timedelta(minutes=30)
+            visit(cur, 100, sp, pid+'-s%d' % spots.index(sp), 'Unknown', tz=tz)
+            cur += timedelta(minutes=110)
+            prev = sp
+        move(cur, 30, prev, hotel, tz=tz, n=5, jitter=0.0012)
         if day.date() <= b.date():
             visit(at(day,23,tz=tz), 480, hotel, pid, 'Unknown', tz=tz)   # 숙소에서 밤을 넘긴다
         day += timedelta(days=1); continue
