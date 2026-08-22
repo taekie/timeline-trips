@@ -20,16 +20,16 @@
   "  <h1>Travel Timeline<span class=\"badge\">nothing is uploaded</span></h1>"
  ],
  [
-  "Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.\n모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다.",
-  "Finds where you live from your Google Timeline records, then groups the days you went far from home into trips.\nEverything is worked out inside this browser; the location file is never sent anywhere."
+  "Google Timeline 기록으로 집을 추정하고, 집에서 멀리 떠난 기간을 여행으로 묶어 보여줍니다.\n모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다.",
+  "Uses your Google Timeline records to estimate home, then groups periods away from home into trips.\nEverything happens in this browser; your location file is never sent to a server."
  ],
  [
-  "<b>타임라인 JSON 파일을 여기에 끌어다 놓으세요</b>",
+  "<b>타임라인 JSON 파일을 여기로 끌어다 놓으세요</b>",
   "<b>Drop your Timeline JSON file here</b>"
  ],
  [
-  "<span>또는 클릭해서 선택. 내보내는 곳이 기기마다 다릅니다.</span>",
-  "<span>or click to pick one. Where you export it differs by device.</span>"
+  "<span>또는 클릭해 파일을 선택하세요. 내보내기 메뉴는 기기마다 다릅니다.</span>",
+  "<span>or click to choose a file. The export menu differs by device.</span>"
  ],
  [
   "Google 지도 앱 → 프로필 → ⋯ → 위치 및 개인정보 설정 → 타임라인 데이터 내보내기 → 파일에 저장 (location-history.json)",
@@ -40,20 +40,20 @@
   "Phone Settings → Location → Timeline → Export Timeline data (Timeline.json)"
  ],
  [
-  "<span>파일이 없어도 둘러볼 수 있습니다</span>",
-  "<span>No file? Look around anyway</span>"
+  "<span>기록 파일이 없어도 둘러볼 수 있습니다</span>",
+  "<span>No location file? You can still look around</span>"
  ],
  [
-  "<button id=\"demo\">샘플 데이터로 둘러보기</button>",
-  "<button id=\"demo\">Explore with sample data</button>"
+  "<button id=\"demo\">샘플 기록으로 둘러보기</button>",
+  "<button id=\"demo\">Explore sample records</button>"
  ],
  [
   "<h2>기록 밀도</h2>",
   "<h2>How dense the records are</h2>"
  ],
  [
-  "<h2>거주지 이력</h2>",
-  "<h2>Where you have lived</h2>"
+  "<h2>거주지 변화</h2>",
+  "<h2>Home history</h2>"
  ],
  [
   "<h2>여행 지도</h2>",
@@ -81,7 +81,7 @@
  ],
  [
   "<label id=\"thWrap\">집에서 <b id=\"thLbl\">80</b>km 이상",
-  "<label id=\"thWrap\">More than <b id=\"thLbl\">80</b>km from home"
+  "<label id=\"thWrap\">At least <b id=\"thLbl\">80</b>km from home"
  ],
  [
   "<button id=\"dl\">CSV 내려받기</button>",
@@ -96,8 +96,8 @@
   "contributors · Tiles ©"
  ],
  [
-  "<b>읽는 법.</b> 여행 판정 기준은 “그 시점의 집에서 얼마나 멀어졌는가”입니다. 이사를 하면 기준 집도 함께 바뀝니다.\n    기록이 없는 기간의 여행은 나타나지 않으므로 위의 기록 밀도를 함께 확인하세요.\n    지명은 행정구역 경계(국내 시·군·구) 및 도시 좌표(해외)와 대조해 붙였습니다.",
-  "<b>How to read this.</b> A trip is judged by how far you went from the home of that time. If you move, the reference home moves with you.\n    Trips in periods with no records will not appear, so check the record density above as well.\n    Place names come from administrative boundaries (municipalities at home) and city coordinates (abroad)."
+  "<b>여행을 판정하는 기준.</b> 그 시점의 집에서 얼마나 멀리 떠났는지를 기준으로 합니다. 이사하면 기준 집도 함께 바뀝니다.\n    기록이 없는 기간의 여행은 표시되지 않을 수 있으니 위의 기록 밀도도 함께 확인하세요.\n    지명은 국내에서는 행정구역 경계, 해외에서는 도시 좌표를 바탕으로 표시합니다.",
+  "<b>How trips are identified.</b> A trip is based on how far you went from home at that time. If you move, the reference home changes too.\n    Trips may be missing where there are no records, so check the record density above as well.\n    Place names are based on administrative boundaries at home and city coordinates abroad."
  ],
  [
   "GitHub 저장소</a> · 코드와 지명 데이터는 열려 있습니다</div>",
@@ -116,8 +116,8 @@
   "<button id=\"legBack\" class=\"on\">Coming back</button>"
  ],
  [
-  "<span class=\"hint\">도착 전과 출발 뒤의 그날 경로</span>",
-  "<span class=\"hint\">that day’s route before arriving and after leaving</span>"
+  "<span class=\"hint\">도착 전과 출발 후의 경로</span>",
+  "<span class=\"hint\">route before arrival and after departure</span>"
  ],
  [
   "<div class=\"hint\" id=\"mapHint\">휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로</div>",
@@ -156,11 +156,11 @@
   "'Not enough stay records to work out a home.'"
  ],
  [
-  "msg('경계 데이터를 아직 불러오는 중입니다. 잠시 후 다시 시도하세요.',1)",
+  "msg('경계 데이터를 불러오는 중입니다. 잠시 후 다시 시도하세요.',1)",
   "msg('The boundary data is still loading. Try again in a moment.',1)"
  ],
  [
-  "msg(`${f.name} (${(f.size/1e6).toFixed(1)}MB) 읽는 중…`)",
+  "msg(`${f.name} (${(f.size/1e6).toFixed(1)}MB) 파일을 읽는 중…`)",
   "msg(`Reading ${f.name} (${(f.size/1e6).toFixed(1)}MB)…`)"
  ],
  [
@@ -168,23 +168,23 @@
   "msg('Could not read the file.',1)"
  ],
  [
-  "msg('샘플 데이터 받는 중…')",
-  "msg('Fetching the sample data…')"
+  "msg('샘플 기록을 불러오는 중…')",
+  "msg('Loading sample records…')"
  ],
  [
-  "new Error('샘플을 받지 못했습니다.')",
-  "new Error('Could not fetch the sample.')"
+  "new Error('샘플 기록을 불러오지 못했습니다.')",
+  "new Error('Could not load the sample records.')"
  ],
  [
-  "drop.querySelector('b').textContent='다른 파일 분석하기';",
-  "drop.querySelector('b').textContent='Analyse another file';"
+  "drop.querySelector('b').textContent='다른 파일 선택하기';",
+  "drop.querySelector('b').textContent='Choose another file';"
  ],
  [
-  "msg(`${ST.n.toLocaleString()}개 지점 분석 완료 (${Math.round(performance.now()-t0)}ms) · 기준 거리 ${ST.auto}km 자동 설정`);",
-  "msg(`${ST.n.toLocaleString()} points analysed in ${Math.round(performance.now()-t0)}ms · threshold set to ${ST.auto}km`);"
+  "msg(`${ST.n.toLocaleString()}개 지점 분석 완료 (${Math.round(performance.now()-t0)}ms) · 여행 기준 ${ST.auto}km로 설정`);",
+  "msg(`${ST.n.toLocaleString()} points analysed in ${Math.round(performance.now()-t0)}ms · trip threshold set to ${ST.auto}km`);"
  ],
  [
-  "'예전 Takeout 형식(timelineObjects)입니다. 아직 지원하지 않습니다.'",
+  "'이전 Takeout 형식(timelineObjects)입니다. 아직 지원하지 않습니다.'",
   "'This is the old Takeout format (timelineObjects). Not supported yet.'"
  ],
  [
@@ -192,8 +192,8 @@
   "'This is Records.json (raw location history). Use a Timeline export instead.'"
  ],
  [
-  "'분석 실패: '+err.message",
-  "'Analysis failed: '+err.message"
+  "'분석하지 못했습니다: '+err.message",
+  "'Could not analyse the file: '+err.message"
  ],
  [
   "(sea?' 앞바다':'')",
@@ -228,8 +228,8 @@
   "const DIRS='N NE E SE S SW W NW'.split(' ');"
  ],
  [
-  "const DOW='일월화수목금토';",
-  "const DOW='SMTWTFS';"
+  "const DOW=['일','월','화','수','목','금','토'];",
+  "const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];"
  ],
  [
   "const where=a.work?'직장':`집에서 ${bearing(h,pos)} ${km<10?km.toFixed(1):Math.round(km)}km`;",
@@ -240,8 +240,8 @@
   "?homeCountry:'Domestic';"
  ],
  [
-  "[S.dayList.length.toLocaleString(),'기록된 날'],",
-  "[S.dayList.length.toLocaleString(),'days recorded'],"
+  "[S.dayList.length.toLocaleString(),'기록이 있는 날'],",
+  "[S.dayList.length.toLocaleString(),'days with records'],"
  ],
  [
   "'기간'],",
@@ -264,19 +264,19 @@
   "title=\"${v} days in ${y}\""
  ],
  [
-  "? `<b style=\"color:#dc2626\">기록이 희박한 해:</b> ${low.map(y=>y+'년('+S.years.get(y)+'일)').join(', ')} — 이 시기의 여행은 누락되었을 수 있습니다.`",
-  "? `<b style=\"color:#dc2626\">Thin years:</b> ${low.map(y=>y+' ('+S.years.get(y)+' day'+(S.years.get(y)===1?'':'s')+')').join(', ')} — trips in these periods may be missing.`"
+  "? `<b style=\"color:#dc2626\">기록이 적은 해:</b> ${low.map(y=>y+'년('+S.years.get(y)+'일)').join(', ')} — 이 기간의 여행은 빠졌을 수 있습니다.`",
+  "? `<b style=\"color:#dc2626\">Years with few records:</b> ${low.map(y=>y+' ('+S.years.get(y)+' day'+(S.years.get(y)===1?'':'s')+')').join(', ')} — trips from these periods may be missing.`"
  ],
  [
-  "'모든 연도에 충분한 기록이 있습니다.'",
-  "'Every year has enough records.'"
+  "'모든 연도에 기록이 충분합니다.'",
+  "'There are enough records for every year.'"
  ],
  [
   "<span>${mo}개월 · ",
   "<span>${mo} months · "
  ],
  [
-  "'<div class=\"note\">Home 라벨이 없어 심야(03시) 체류 기록으로 집을 추정했습니다.</div>'",
+  "'<div class=\"note\">Home 라벨이 없어 새벽 3시를 포함한 체류 기록으로 집을 추정했습니다.</div>'",
   "'<div class=\"note\">No Home labels, so the home was inferred from stays that span 3am.</div>'"
  ],
  [
@@ -292,8 +292,8 @@
   "'<span class=\"abroad\">abroad</span>'"
  ],
  [
-  "MODE==='world'?'해외로 나간 기록이 없습니다.':'기준 거리 내에서 벗어난 일정이 없습니다.'",
-  "MODE==='world'?'No records of going abroad.':'Nothing went beyond the threshold distance.'"
+  "MODE==='world'?'해외로 나간 기록이 없습니다.':'여행 기준을 넘는 일정이 없습니다.'",
+  "MODE==='world'?'No records of going abroad.':'No periods went beyond the trip threshold.'"
  ],
  [
   "$('#tripCount').textContent=`${all.length}곳`;",
@@ -312,27 +312,27 @@
   "<td class=\"r nw\">${f.days.toLocaleString()}</td>"
  ],
  [
-  "stay?'30분 넘게 되풀이해 머문 곳이 없습니다.':'짧게 되풀이해 스친 곳이 없습니다.'",
-  "stay?'Nowhere was visited repeatedly for more than 30 minutes.':'Nowhere was passed through repeatedly.'"
+  "stay?'30분 넘게 반복해서 머문 곳이 없습니다.':'짧게 반복해서 들른 곳이 없습니다.'",
+  "stay?'No place was visited repeatedly for more than 30 minutes.':'No place was visited repeatedly for a short time.'"
  ],
  [
-  "(stay?`한 번에 ${FMIN}분 넘게 머문 것만 셉니다. 짧게 스친 곳은 경유에 있습니다.`\n        : `한 번에 ${FMIN}분이 안 되게 머문 것만 셉니다. 오래 머문 곳은 방문에 있습니다.`)",
-  "(stay?`Only stays longer than ${FMIN} minutes are counted. Brief stops are under Pass-throughs.`\n        : `Only stops shorter than ${FMIN} minutes are counted. Longer stays are under Visits.`)"
+  "(stay?`한 번에 ${FMIN}분 넘게 머문 곳만 셉니다. 짧게 들른 곳은 경유에서 볼 수 있습니다.`\n        : `한 번에 ${FMIN}분 미만 머문 곳만 셉니다. 오래 머문 곳은 방문에서 볼 수 있습니다.`)",
+  "(stay?`Only places where you stayed longer than ${FMIN} minutes at a time are counted. Short stops appear under Pass-throughs.`\n        : `Only places where you stayed less than ${FMIN} minutes at a time are counted. Longer stays appear under Visits.`)"
  ],
  [
-  "+(all.length>F.length?` 많이 간 순으로 ${F.length}곳까지 보여줍니다 (총 ${all.length}곳).`:'');",
-  "+(all.length>F.length?` Showing the top ${F.length} of ${all.length}.`:'');"
+  "+(all.length>F.length?` 방문 횟수가 많은 순으로 ${F.length}곳까지 표시합니다 (전체 ${all.length}곳).`:'');",
+  "+(all.length>F.length?` Showing the ${F.length} most visited places of ${all.length}.`:'');"
  ],
  [
-  "said.push(`화면 밖 ${off}곳`)",
+  "said.push(`화면 밖에 ${off}곳`)",
   "said.push(`${off} off screen`)"
  ],
  [
-  "said.push(`자주 간 순으로 ${FQ.length}곳만 얹음`)",
+  "said.push(`자주 간 순으로 ${FQ.length}곳만 표시`)",
   "said.push(`showing the top ${FQ.length}`)"
  ],
  [
-  "? `${said.join(' · ')} — 아래 목록을 보세요.` : '';",
+  "? `${said.join(' · ')} — 목록에서 확인하세요.` : '';",
   "? `${said.join(' · ')} — see the list below.` : '';"
  ],
  [
@@ -360,27 +360,27 @@
   "<span class=\"m\">${t.nights} night${t.nights===1?'':'s'} · up to ${Math.round(t.km).toLocaleString()}km</span>"
  ],
  [
-  "<div class=\"s\">머문 곳 ${sv}</div>",
-  "<div class=\"s\">Slept in ${sv}</div>"
+  "<div class=\"s\">숙박 장소 ${sv}</div>",
+  "<div class=\"s\">Stayed in ${sv}</div>"
  ],
  [
   "<span class=\"m\">${f.visits.toLocaleString()}번 · ${f.days.toLocaleString()}일</span>",
   "<span class=\"m\">${f.visits.toLocaleString()} visits · ${f.days.toLocaleString()} days</span>"
  ],
  [
-  "· 한 번에 평균 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·",
-  "· ${durStr(f.mins/f.visits)} each on average · ${durStr(f.mins)} in total ·"
+  "· 평균 체류 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·",
+  "· average stay ${durStr(f.mins/f.visits)} · total ${durStr(f.mins)} ·"
  ],
  [
-  "${hit.f.days.toLocaleString()}일 · ${hit.f.visits.toLocaleString()}번 · 마지막 ${dstr(hit.f.last)}",
-  "${hit.f.visits.toLocaleString()} visits · ${hit.f.days.toLocaleString()} days · last ${dstr(hit.f.last)}"
+  "${hit.f.days.toLocaleString()}일 · ${hit.f.visits.toLocaleString()}번 · 마지막 방문 ${dstr(hit.f.last)}",
+  "${hit.f.visits.toLocaleString()} visits · ${hit.f.days.toLocaleString()} days · last visit ${dstr(hit.f.last)}"
  ],
  [
   "${hit.t.nights}박 · ${Math.round(hit.t.km)}km",
   "${hit.t.nights}n · ${Math.round(hit.t.km)}km"
  ],
  [
-  "${h?h+'시간 ':''}${mi}분 머묾",
+  "${h?h+'시간 ':''}${mi}분 체류",
   "${h?h+'h ':''}${mi}m stay"
  ],
  [
@@ -400,8 +400,8 @@
   "<span id=\"lang\"><a href=\"../\">한국어</a> · <b>English</b></span>"
  ],
  [
-  "<p>기록을 넣으면 이런 화면이 나옵니다 — 집을 기준으로 묶인 여행 목록과 지도, 되풀이해 들른 곳까지.</p>",
-  "<p>Drop your records in and you get this — trips grouped around your home, on a map, plus the places you keep going back to.</p>"
+  "<p>파일을 넣으면 집을 기준으로 정리한 여행 목록과 지도, 자주 간 곳을 볼 수 있습니다.</p>",
+  "<p>Add a file to see your trips, organised around home, on a map alongside your frequent places.</p>"
  ],
  [
   "<img src=\"preview.png\" alt=\"세계 지도 위의 여행과 여행 목록 표\" loading=\"lazy\">",

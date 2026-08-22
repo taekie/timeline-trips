@@ -153,26 +153,26 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
     <a id="ghTop" href="https://github.com/taekie/timeline-trips" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>GitHub</a>
   </div>
 </div>
-<p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
+<p class="sub">Google Timeline 기록으로 집을 추정하고, 집에서 멀리 떠난 기간을 여행으로 묶어 보여줍니다.
 모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다.</p>
 
 <div id="drop">
-  <b>타임라인 JSON 파일을 여기에 끌어다 놓으세요</b>
+  <b>타임라인 JSON 파일을 여기로 끌어다 놓으세요</b>
   <div id="dropHow">
-    <span>또는 클릭해서 선택. 내보내는 곳이 기기마다 다릅니다.</span>
+    <span>또는 클릭해 파일을 선택하세요. 내보내기 메뉴는 기기마다 다릅니다.</span>
     <span><kbd>iPhone</kbd> Google 지도 앱 → 프로필 → ⋯ → 위치 및 개인정보 설정 → 타임라인 데이터 내보내기 → 파일에 저장 (location-history.json)</span>
     <span><kbd>Android</kbd> 휴대폰 설정 → 위치 → 타임라인 → 타임라인 데이터 내보내기 (Timeline.json)</span>
   </div>
   <input type="file" id="file" accept=".json,application/json" class="hide">
 </div>
 <div id="demoRow">
-  <span>파일이 없어도 둘러볼 수 있습니다</span>
-  <button id="demo">샘플 데이터로 둘러보기</button>
+  <span>기록 파일이 없어도 둘러볼 수 있습니다</span>
+  <button id="demo">샘플 기록으로 둘러보기</button>
 </div>
 <div id="status"></div>
 
 <div id="intro">
-  <p>기록을 넣으면 이런 화면이 나옵니다 — 집을 기준으로 묶인 여행 목록과 지도, 되풀이해 들른 곳까지.</p>
+  <p>파일을 넣으면 집을 기준으로 정리한 여행 목록과 지도, 자주 간 곳을 볼 수 있습니다.</p>
   <img src="preview.png" alt="세계 지도 위의 여행과 여행 목록 표" loading="lazy">
 </div>
 
@@ -186,7 +186,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
     <div class="note" id="gapnote"></div>
   </div>
 
-  <h2>거주지 이력</h2>
+  <h2>거주지 변화</h2>
   <div class="card" id="homes"></div>
 
   <h2>여행 지도</h2>
@@ -220,9 +220,9 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
   <div class="note" id="freqnote"></div>
 
   <footer>
-    <b>읽는 법.</b> 여행 판정 기준은 “그 시점의 집에서 얼마나 멀어졌는가”입니다. 이사를 하면 기준 집도 함께 바뀝니다.
-    기록이 없는 기간의 여행은 나타나지 않으므로 위의 기록 밀도를 함께 확인하세요.
-    지명은 행정구역 경계(국내 시·군·구) 및 도시 좌표(해외)와 대조해 붙였습니다.
+    <b>여행을 판정하는 기준.</b> 그 시점의 집에서 얼마나 멀리 떠났는지를 기준으로 합니다. 이사하면 기준 집도 함께 바뀝니다.
+    기록이 없는 기간의 여행은 표시되지 않을 수 있으니 위의 기록 밀도도 함께 확인하세요.
+    지명은 국내에서는 행정구역 경계, 해외에서는 도시 좌표를 바탕으로 표시합니다.
     <div id="repo"><a href="https://github.com/taekie/timeline-trips" target="_blank" rel="noopener">
       <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
       GitHub 저장소</a> · 코드와 지명 데이터는 열려 있습니다</div>
@@ -239,7 +239,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
     <div id="legs" class="hide">
       <button id="legGo" class="on">갈 때</button>
       <button id="legBack" class="on">올 때</button>
-      <span class="hint">도착 전과 출발 뒤의 그날 경로</span>
+      <span class="hint">도착 전과 출발 후의 경로</span>
     </div>
     <div class="hint" id="mapHint">휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로</div>
     <div id="attr">지도 데이터 ©
@@ -657,7 +657,7 @@ async function render(){
 
   const nAbroad=T.filter(t=>t.abroad).length;
   $('#stats').innerHTML=[
-    [S.dayList.length.toLocaleString(),'기록된 날'],
+    [S.dayList.length.toLocaleString(),'기록이 있는 날'],
     [dstr(S.dayList[0]).slice(0,4)+'–'+dstr(S.dayList[S.dayList.length-1]).slice(0,4),'기간'],
     [S.res.length,'거주지'],
     [T.length,'여행'],
@@ -670,8 +670,8 @@ async function render(){
   $('#dlabels').innerHTML=ys.map(y=>`<span>${y.slice(2)}</span>`).join('');
   const low=ys.filter(y=>S.years.get(y)<120);
   $('#gapnote').innerHTML=low.length
-    ? `<b style="color:#dc2626">기록이 희박한 해:</b> ${low.map(y=>y+'년('+S.years.get(y)+'일)').join(', ')} — 이 시기의 여행은 누락되었을 수 있습니다.`
-    : '모든 연도에 충분한 기록이 있습니다.';
+    ? `<b style="color:#dc2626">기록이 적은 해:</b> ${low.map(y=>y+'년('+S.years.get(y)+'일)').join(', ')} — 이 기간의 여행은 빠졌을 수 있습니다.`
+    : '모든 연도에 기록이 충분합니다.';
 
   $('#homes').innerHTML=S.res.map(r=>{
     const pn=placeName(r.pos[0],r.pos[1]), mo=Math.round((r.to-r.from)/30.4);
@@ -679,7 +679,7 @@ async function render(){
       <span class="dest" style="color:var(--ink)">${pn.name}</span>
       <span>${mo}개월 · ${r.pos[0].toFixed(4)}, ${r.pos[1].toFixed(4)}</span></div>`;
   }).join('')+(S.H.inferred
-    ? '<div class="note">Home 라벨이 없어 심야(03시) 체류 기록으로 집을 추정했습니다.</div>':'');
+    ? '<div class="note">Home 라벨이 없어 새벽 3시를 포함한 체류 기록으로 집을 추정했습니다.</div>':'');
 
   S.freq=frequent();                       // 목록은 다 보여주고, 지도만 상위 몇 곳으로 줄인다
   FVIEW=null;                              // 기준이 바뀌었으니 지도도 자동 맞춤부터
@@ -722,7 +722,7 @@ function renderList(){
       <td class="r">${Math.round(t.km).toLocaleString()}km</td></tr>`);
   });
   $('#tbl tbody').innerHTML=rows.join('')||`<tr><td colspan="5" style="color:var(--ink2)">${
-    MODE==='world'?'해외로 나간 기록이 없습니다.':'기준 거리 내에서 벗어난 일정이 없습니다.'}</td></tr>`;
+    MODE==='world'?'해외로 나간 기록이 없습니다.':'여행 기준을 넘는 일정이 없습니다.'}</td></tr>`;
 }
 
 /* 자주 간 곳 — 여행 기준 거리와 무관하게 몇 번 갔는지로 줄을 세운다 */
@@ -739,11 +739,11 @@ function freqTable(){
       <td class="r nw">${durStr(f.mins)}</td>
       <td class="nw">${dstr(f.last)}</td></tr>`).join('')
     ||`<tr><td colspan="6" style="color:var(--ink2)">${
-        stay?'30분 넘게 되풀이해 머문 곳이 없습니다.':'짧게 되풀이해 스친 곳이 없습니다.'}</td></tr>`;
+        stay?'30분 넘게 반복해서 머문 곳이 없습니다.':'짧게 반복해서 들른 곳이 없습니다.'}</td></tr>`;
   $('#freqnote').textContent=
-    (stay?`한 번에 ${FMIN}분 넘게 머문 것만 셉니다. 짧게 스친 곳은 경유에 있습니다.`
-        : `한 번에 ${FMIN}분이 안 되게 머문 것만 셉니다. 오래 머문 곳은 방문에 있습니다.`)
-    +(all.length>F.length?` 많이 간 순으로 ${F.length}곳까지 보여줍니다 (총 ${all.length}곳).`:'');
+    (stay?`한 번에 ${FMIN}분 넘게 머문 곳만 셉니다. 짧게 들른 곳은 경유에서 볼 수 있습니다.`
+        : `한 번에 ${FMIN}분 미만 머문 곳만 셉니다. 오래 머문 곳은 방문에서 볼 수 있습니다.`)
+    +(all.length>F.length?` 방문 횟수가 많은 순으로 ${F.length}곳까지 표시합니다 (전체 ${all.length}곳).`:'');
 }
 
 /* "충청남도 천안시 동남구" -> "천안시" — a bare 구 name is not a destination */
@@ -888,10 +888,10 @@ function draw(){
   // 말없이 줄이면 다 보이는 줄 안다. 확대해서 밀려난 것과 애초에 안 얹은 것은
   // 이유가 달라서 따로 적는다.
   const cut=FQ?freqList().length-FQ.length:0, said=[];
-  if(off) said.push(`화면 밖 ${off}곳`);
-  if(cut) said.push(`자주 간 순으로 ${FQ.length}곳만 얹음`);
+  if(off) said.push(`화면 밖에 ${off}곳`);
+  if(cut) said.push(`자주 간 순으로 ${FQ.length}곳만 표시`);
   $('#mapnote').textContent=said.length
-    ? `${said.join(' · ')} — 아래 목록을 보세요.` : '';
+    ? `${said.join(' · ')} — 목록에서 확인하세요.` : '';
   const hx=X(h[0],h[1]),hy=Y(h[0],h[1]);
   // 여행은 집에서 뻗어 나간 선으로 읽히지만, 자주 간 곳은 한 번의 나들이가
   // 아니라 되풀이한 지점이라 선을 긋지 않는다
@@ -1197,7 +1197,7 @@ function stays(t){
 }
 
 /* 날짜 인덱스는 UTC 자정 기준이라 getUTCDay 가 그 날의 요일이다 */
-const DOW='일월화수목금토';
+const DOW=['일','월','화','수','목','금','토'];
 function dow(d){return DOW[new Date(d*DAY).getUTCDay()];}
 
 function buildDays(t){
@@ -1228,7 +1228,7 @@ function openTrip(t){
   $('#modalTitle').innerHTML=
     `<span class="d">${y}.${range}</span><span class="m">${t.nights}박 · 최대 ${Math.round(t.km).toLocaleString()}km</span>
      <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>
-     ${sv?`<div class="s">머문 곳 ${sv}</div>`:''}`;
+     ${sv?`<div class="s">숙박 장소 ${sv}</div>`:''}`;
   setHint();
   $('#modal').classList.add('open');
   buildDays(t);
@@ -1250,7 +1250,7 @@ function openPlace(f){
   $('#modalTitle').innerHTML=
     `<span class="d">${f.name}</span><span class="m">${f.visits.toLocaleString()}번 · ${f.days.toLocaleString()}일</span>
      <div class="p">${f.where}</div>
-     <div class="s">${dstr(f.first)} ~ ${dstr(f.last)} · 한 번에 평균 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·
+     <div class="s">${dstr(f.first)} ~ ${dstr(f.last)} · 평균 체류 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·
        ${f.pos[0].toFixed(5)}, ${f.pos[1].toFixed(5)}</div>`;
   $('#days').innerHTML='';               // 날짜가 수백 개라 칩으로 세우지 않는다
   setHint();
@@ -1269,15 +1269,15 @@ drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');
 $('#file').onchange=e=>{if(e.target.files[0]) load(e.target.files[0]);};
 /* 기록이 없어도 둘러볼 수 있게 지어낸 2년치를 얹는다. 실존 인물의 기록이 아니다. */
 $('#demo').onclick=()=>{
-  msg('샘플 데이터 받는 중…');
-  fetch(DATA+'sample.json').then(r=>r.ok?r.blob():Promise.reject(new Error('샘플을 받지 못했습니다.')))
+  msg('샘플 기록을 불러오는 중…');
+  fetch(DATA+'sample.json').then(r=>r.ok?r.blob():Promise.reject(new Error('샘플 기록을 불러오지 못했습니다.')))
     .then(bl=>{const f=new File([bl],'sample.json',{type:'application/json'}); load(f);})
     .catch(err=>msg(err.message,1));
 };
 
 function load(f){
-  if(!GEO){msg('경계 데이터를 아직 불러오는 중입니다. 잠시 후 다시 시도하세요.',1);return;}
-  msg(`${f.name} (${(f.size/1e6).toFixed(1)}MB) 읽는 중…`);
+  if(!GEO){msg('경계 데이터를 불러오는 중입니다. 잠시 후 다시 시도하세요.',1);return;}
+  msg(`${f.name} (${(f.size/1e6).toFixed(1)}MB) 파일을 읽는 중…`);
   const rd=new FileReader();
   rd.onerror=()=>msg('파일을 읽지 못했습니다.',1);
   rd.onload=()=>{
@@ -1290,15 +1290,15 @@ function load(f){
         $('#intro').classList.add('hide');        // 진짜 결과가 나오면 미리 보기는 물러난다
         await render();
         drop.style.padding='18px 20px';
-        drop.querySelector('b').textContent='다른 파일 분석하기';
+        drop.querySelector('b').textContent='다른 파일 선택하기';
         $('#dropHow').textContent=f.name;
-        msg(`${ST.n.toLocaleString()}개 지점 분석 완료 (${Math.round(performance.now()-t0)}ms) · 기준 거리 ${ST.auto}km 자동 설정`);
+        msg(`${ST.n.toLocaleString()}개 지점 분석 완료 (${Math.round(performance.now()-t0)}ms) · 여행 기준 ${ST.auto}km로 설정`);
       }catch(err){
         msg(err.message==='OLD'
-          ? '예전 Takeout 형식(timelineObjects)입니다. 아직 지원하지 않습니다.'
+          ? '이전 Takeout 형식(timelineObjects)입니다. 아직 지원하지 않습니다.'
           : err.message==='RAW'
           ? 'Records.json(원시 위치 기록)입니다. Timeline 내보내기 파일을 사용하세요.'
-          : '분석 실패: '+err.message, 1);
+          : '분석하지 못했습니다: '+err.message, 1);
         console.error(err);
       }
     },30);
@@ -1340,7 +1340,7 @@ $('#cv').onmousemove=e=>{
     tip.style.left=Math.min(e.clientX+12,innerWidth-230)+'px';
     tip.style.top=(e.clientY+14)+'px';
     tip.innerHTML=hit.f
-      ? `<b>${hit.f.name} · ${hit.f.where}</b><br>${hit.f.days.toLocaleString()}일 · ${hit.f.visits.toLocaleString()}번 · 마지막 ${dstr(hit.f.last)}`
+      ? `<b>${hit.f.name} · ${hit.f.where}</b><br>${hit.f.days.toLocaleString()}일 · ${hit.f.visits.toLocaleString()}번 · 마지막 방문 ${dstr(hit.f.last)}`
       : `<b>${hit.t.places.map(p=>p.name).join(' · ')}</b><br>
          ${dstr(hit.t.a)} ~ ${dstr(hit.t.b)} · ${hit.t.nights}박 · ${Math.round(hit.t.km)}km`;
     const sel=hit.f?`#tbl tr[data-f="${freqList().indexOf(hit.f)}"]`:`#tbl tr[data-i="${ST.trips.indexOf(hit.t)}"]`;
@@ -1481,7 +1481,7 @@ $('#mcv').onmousemove=e=>{
   tip.style.left=Math.min(e.clientX+12,innerWidth-230)+'px';
   tip.style.top=(e.clientY+14)+'px';
   tip.innerHTML=`<b>${fmt(v.d)} ${dow(v.d)} ${lo.toISOString().slice(11,16)}</b><br>
-    ${h?h+'시간 ':''}${mi}분 머묾`;
+    ${h?h+'시간 ':''}${mi}분 체류`;
 };
 $('#mcv').onmouseleave=()=>{$('#tip').style.display='none';};
 
