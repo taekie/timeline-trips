@@ -64,6 +64,8 @@ button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--line)
   background:var(--bg);border-radius:6px;cursor:pointer;color:var(--ink)}
 button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 .tabs{display:flex;gap:6px}
+#cv.pan{touch-action:none;cursor:grab}
+#cv.pan.drag{cursor:grabbing}
 #cv{width:100%;display:block;border-radius:8px;background:var(--bg);border:1px solid var(--line);cursor:crosshair}
 #tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;
   padding:6px 9px;border-radius:5px;display:none;z-index:9;max-width:220px;line-height:1.45}
@@ -90,6 +92,10 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 #modalTitle .s{color:var(--blue-d);font-size:12.5px;margin-top:1px}
 #mcv{width:100%;display:block;border-radius:8px;background:var(--bg2);border:1px solid var(--line);cursor:grab;touch-action:none}
 #mcv.drag{cursor:grabbing}
+@media (max-width:600px){                 /* 좁은 화면에서는 팝업이 화면을 다 쓴다 */
+  #modal{padding:0}
+  #modalBox{width:100%;max-height:100%;border-radius:0;padding:14px 12px 16px}
+}
 #days{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .chip{border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:12.5px;
   cursor:pointer;background:var(--bg);line-height:1.35;text-align:left}
@@ -98,16 +104,16 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 .chip span{color:var(--ink2);font-size:11.5px}
 .chip.on{border-color:var(--blue);background:var(--blue-l);color:var(--ink)}
 .chip.empty span{color:var(--ink3)}
-#attr{font-size:11.5px;color:var(--ink3);margin-top:6px}
+#attr,#attrMain{font-size:11.5px;color:var(--ink3);margin-top:6px}
 .hint{font-size:11.5px;color:var(--ink3);margin-top:6px}
-#attr a{color:var(--ink2)}
+#attr a,#attrMain a{color:var(--ink2)}
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
 <p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
-모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세의 배경 지도는 외부에서 지도 타일을 받아오므로 보고 있는 지역의 타일 좌표가 그 서버에 전달됩니다. 모달의 <b>배경 지도</b> 버튼으로 끄면 그마저 받지 않습니다.</p>
+모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세와 자주 간 곳의 배경 지도는 외부에서 지도 타일을 받아오므로 보고 있는 지역의 타일 좌표가 그 서버에 전달됩니다. <b>배경 지도</b> 버튼으로 끄면 그마저 받지 않습니다.</p>
 
 <div id="drop">
   <b>location-history.json 을 여기에 끌어다 놓으세요</b>
@@ -134,17 +140,23 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
     <div class="tabs">
       <button id="tabKr" class="on">국내</button>
       <button id="tabW">세계</button>
+      <button id="tabF">자주 간 곳</button>
     </div>
-    <label>집에서 <b id="thLbl">80</b>km 이상
+    <label id="thWrap">집에서 <b id="thLbl">80</b>km 이상
       <input type="range" id="th" min="30" max="300" step="10" value="80"></label>
+    <button id="tilesMain" class="hide">배경 지도</button>
     <button id="dl">CSV 내려받기</button>
   </div>
   <canvas id="cv"></canvas>
+  <div class="note" id="mapnote"></div>
+  <div id="attrMain" class="hide">지도 데이터 ©
+    <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 ©
+    <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a></div>
 
-  <h2>여행 목록 <span id="tripCount" style="font-weight:400;color:var(--ink2)"></span></h2>
+  <h2><span id="listTitle">여행 목록</span> <span id="tripCount" style="font-weight:400;color:var(--ink2)"></span></h2>
   <div class="card" style="padding:0;overflow-x:auto">
     <table id="tbl">
-      <thead><tr><th></th><th>기간</th><th>목적지</th><th class="r">박</th><th class="r">최대거리</th></tr></thead>
+      <thead></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -164,7 +176,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
       <button id="modalClose">닫기</button>
     </div>
     <canvas id="mcv"></canvas>
-    <div class="hint">휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로</div>
+    <div class="hint" id="mapHint">휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로</div>
     <div id="attr" class="hide">지도 데이터 ©
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 ©
       <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a></div>
@@ -308,8 +320,10 @@ function extract(recs){
       const tc=r.visit.topCandidate||{}, p=geo(tc.placeLocation||tc.latLng||tc.placeLatLng);
       if(!p) continue;
       pts.push([st,p,off],[isFinite(en)?en:st,p,off]);
-      if(/HOME/i.test(tc.semanticType||'')) homes.push([st,p,hrs,off]);
-      else nights.push([st,en,p,off]);
+      if(/HOME/i.test(tc.semanticType||'')) homes.push([st,p,hrs,off,en]);
+      // placeID 는 구글이 붙인 장소 식별자다. 좌표 격자보다 정확히 "그 가게"를 가른다.
+      // hierarchyLevel 1 은 그 장소를 감싸는 상위 구역이라 따로 표시해 둔다.
+      else nights.push([st,en,p,off,tc.placeID||'',+(r.visit.hierarchyLevel||0),tc.semanticType||'']);
     } else if(r.activity){
       const a=geo(r.activity.start||r.activity.startLatLng), b=geo(r.activity.end||r.activity.endLatLng);
       if(a) pts.push([st,a,off]);
@@ -329,6 +343,16 @@ const dayOf=(t,p,off)=>Math.floor((t+(off!=null?off:Math.round(p[1]/15)*36e5))/D
 const dstr=d=>new Date(d*DAY).toISOString().slice(0,10);
 const key=p=>p[0].toFixed(2)+','+p[1].toFixed(2);
 
+/* 현지 새벽 3시를 지나 머물렀으면 그 곳에서 밤을 보낸 것으로 본다.
+   기록된 UTC 오프셋이 없으면 경도로 대신한다. */
+function overnight(st,en,p,off){
+  if(!isFinite(en)) return false;
+  const o=off!=null?off:Math.round(p[1]/15)*36e5;
+  const h0=(st+o)/36e5, h1=(en+o)/36e5;
+  for(let h=Math.floor(h0);h<=Math.ceil(h1);h++) if(((h%24)+24)%24===3) return true;
+  return false;
+}
+
 /* ---------- home detection ---------- */
 function buildHomes(homes,nights){
   let votes=homes.map(h=>[dayOf(h[0],h[1],h[3]),h[1],h[2]]);
@@ -336,12 +360,8 @@ function buildHomes(homes,nights){
   if(votes.length<20){                       // no Home labels — use overnight stays
     inferred=true;
     votes=[];
-    for(const[st,en,p,off]of nights){
-      const o=off!=null?off:Math.round(p[1]/15)*36e5;
-      const h0=(st+o)/36e5, h1=(en+o)/36e5;
-      for(let h=Math.floor(h0);h<=Math.ceil(h1);h++)
-        if(((h%24)+24)%24===3){votes.push([dayOf(st,p,off),p,4]);break;}
-    }
+    for(const[st,en,p,off]of nights)
+      if(overnight(st,en,p,off)) votes.push([dayOf(st,p,off),p,4]);
   }
   if(!votes.length) return null;
   votes.sort((a,b)=>a[0]-b[0]);
@@ -387,6 +407,16 @@ function analyse(raw){
     for(const p of days.get(d)){const v=hav(h,p); if(v>m)m=v;}
     dmax.set(d,m);
   }
+  // 집에서 잔 밤. 여행이 끝났다는 신호는 낮에 얼마나 멀리 갔느냐가 아니라
+  // 그 밤을 집에서 잤느냐다. 밤 기록이 없는 내보내기에서는 빈 집합이 되어
+  // 예전처럼 날짜 간격만으로 여행을 나눈다.
+  const homeNights=new Set();
+  for(const[st,p,,off,en]of homes) if(overnight(st,en,p,off)) homeNights.add(dayOf(st,p,off));
+  for(const[st,en,p,off]of nights){
+    const d=dayOf(st,p,off);
+    if(overnight(st,en,p,off)&&hav(H.at(d),p)<=20) homeNights.add(d);   // 20km — stays() 와 같은 집 반경
+  }
+
   // Residence timeline: sample every 14 days, split when home moves >20km.
   // A long trip during a sparsely-recorded stretch can masquerade as a move, so
   // drop anything shorter than 90 days and re-join the neighbours it separated.
@@ -410,14 +440,20 @@ function analyse(raw){
 
   const years=new Map();
   for(const d of dayList){const y=dstr(d).slice(0,4); years.set(y,(years.get(y)||0)+1);}
-  return {days,dayList,dmax,H,res,auto,years,nights,n:pts.length};
+  return {days,dayList,dmax,H,res,auto,years,nights,homeNights,n:pts.length};
 }
 
 function trips(S,TH){
   const far=S.dayList.filter(d=>S.dmax.get(d)>TH);
+  // 두 먼 날 사이에 집에서 잔 밤이 있으면 여행은 거기서 끊긴 것이다.
+  // 날짜 간격만 보면 기준 거리를 낮출수록 집 앞 나들이가 빈틈을 메워
+  // 집에 왔다 다시 떠난 별개 여행이 하나로 붙는다.
+  const HN=S.homeNights||new Set();
+  const slept=(a,b)=>{for(let d=a;d<b;d++) if(HN.has(d)) return true; return false;};
   const groups=[]; let cur=[];
   for(const d of far){
-    if(cur.length&&d-cur[cur.length-1]>2){groups.push(cur);cur=[];}
+    const p=cur[cur.length-1];
+    if(cur.length&&(d-p>2||slept(p,d))){groups.push(cur);cur=[];}
     cur.push(d);
   }
   if(cur.length) groups.push(cur);
@@ -442,7 +478,7 @@ function trips(S,TH){
   const M=[];
   for(const t of T){
     const p=M[M.length-1];
-    if(p&&t.a-p.b<=6&&p.top.length&&t.top.length&&hav(p.top[0],t.top[0])<300) M[M.length-1]=sum(p.a,t.b);
+    if(p&&t.a-p.b<=6&&!slept(p.b,t.a)&&p.top.length&&t.top.length&&hav(p.top[0],t.top[0])<300) M[M.length-1]=sum(p.a,t.b);
     else M.push(t);
   }
   return M;
@@ -461,11 +497,62 @@ function nameTrips(T){
   }
 }
 
+/* 자주 간 곳 — 여행 기준 거리와 무관하게, 서로 다른 며칠에 들렀는지로 셈한다.
+   한 번 오래 머문 곳보다 되풀이해 가는 곳이 위로 온다. 집은 매일이라 뺀다.
+   지명이 시·군·구 단위라 같은 이름으로 나오는 지점은 하나로 묶는다. */
+/* 분 단위를 사람이 읽는 길이로. 한 시간이 안 되면 분이 더 정확하다. */
+function durStr(m){
+  if(m<60) return Math.round(m)+'분';
+  if(m<600) return (m/60).toFixed(1)+'시간';
+  return Math.round(m/60).toLocaleString()+'시간';
+}
+const DIRS='북 북동 동 남동 남 남서 서 북서'.split(' ');
+/* 집에서 본 방향. 같은 구 안의 여러 장소를 말로 갈라 주는 유일한 단서다. */
+function bearing(h,p){
+  const dy=p[0]-h[0], dx=(p[1]-h[1])*Math.cos(h[0]*D);
+  return DIRS[Math.round(((Math.atan2(dx,dy)*180/Math.PI+360)%360)/45)%8];
+}
+
+/* 자주 간 곳 — 여행 기준 거리와 무관하게, 서로 다른 며칠에 들렀는지로 셈한다.
+   묶는 단위는 구글의 placeID 다. 행정구역으로 묶으면 "강남구 467일"처럼
+   어디인지 알 수 없는 덩어리가 되고, 좌표 격자로 묶으면 같은 건물이 갈라진다.
+   내보내기에 상호명은 없으므로 이름은 구·시와 집에서 본 방향·거리로 대신한다. */
+function frequent(){
+  const acc=new Map();
+  for(const v of dwellList((d,p)=>hav(ST.H.at(d),p)>=.2)){   // 집 자체는 뺀다
+    let a=acc.get(v.k);
+    if(!a){a={days:new Set(),vs:[],la:0,lo:0,mins:0,work:false,over:0}; acc.set(v.k,a);}
+    a.days.add(v.d); a.vs.push(v); a.la+=v.pos[0]; a.lo+=v.pos[1]; a.mins+=v.mins;
+    if(/work/i.test(v.type)) a.work=true;
+    if(overnight(v.st,v.en,v.pos,v.off)) a.over++;
+  }
+  const H=ST.H.at(ST.dayList[ST.dayList.length-1]);
+  // dwellList 가 시각순이라 vs 의 처음·끝이 그대로 첫 방문·마지막 방문이다
+  return [...acc.values()]
+    .filter(a=>a.days.size>=3)             // 서너 번은 가야 "자주"다
+    // 구글이 같은 집을 Home 라벨 없는 placeID 로 한 번 더 적어 두는 일이 있다.
+    // 가까이 있으면서 밤을 거의 매번 넘기는 곳은 집이지 들른 곳이 아니다. 실제
+    // 값은 집이 밤샘 61%, 나머지 장소는 모두 5% 이하라 절반에서 끊어도 넉넉하다.
+    // 문턱을 더 낮추면 자고 오는 부모님 댁 같은 곳까지 지워진다.
+    .filter(a=>!(a.over>=a.vs.length*.5&&hav(H,[a.la/a.vs.length,a.lo/a.vs.length])<20))
+    .map(a=>{
+      const pos=[a.la/a.vs.length,a.lo/a.vs.length], h=ST.H.at(a.vs[0].d), km=hav(h,pos);
+      return {name:tightName(placeName(pos[0],pos[1]).name), pos,
+              days:a.days.size, visits:a.vs.length, mins:a.mins, work:a.work,
+              where:a.work?'직장':`집에서 ${bearing(h,pos)} ${km<10?km.toFixed(1):Math.round(km)}km`,
+              first:a.vs[0].d, last:a.vs[a.vs.length-1].d, vs:a.vs};
+    })
+    .sort((x,y)=>y.days-x.days||y.visits-x.visits);
+}
+const FREQN=30;                            // 지도에 얹을 수 — 더 얹으면 점이 서로를 덮는다
+
 /* ---------- render ---------- */
 function msg(s,err){$('#status').textContent=s;$('#status').className=err?'err':'';}
 const fmt=d=>dstr(d).slice(5).replace('-','.');   // 연도는 별도 열이라 월.일만 (0 패딩 유지 — 열 정렬)
 
+let TINIT=false;
 async function render(){
+  if(!TINIT){TINIT=true; TILES=prefGet('tt.tiles')!=='0';}   // 명시적으로 끈 적이 없으면 켠다
   const S=ST, TH=+$('#th').value;
   $('#thLbl').textContent=TH;
   const T=trips(S,TH);
@@ -506,14 +593,33 @@ async function render(){
   }).join('')+(S.H.inferred
     ? '<div class="note">Home 라벨이 없어 심야(03시) 체류 기록으로 집을 추정했습니다.</div>':'');
 
-  $('#tripCount').textContent=`${T.length}건`;
+  S.freq=frequent();                       // 목록은 다 보여주고, 지도만 상위 몇 곳으로 줄인다
+  FVIEW=null;                              // 기준이 바뀌었으니 지도도 자동 맞춤부터
+
+  renderList();
+  draw();
+}
+
+/* 목록은 탭을 따라간다 — 세계 지도를 보는 동안 국내 여행이 섞이면 지도와 목록이
+   다른 것을 가리킨다. data-i 는 걸러낸 뒤에도 ST.trips 의 자리를 가리켜야
+   지도 마커와 표 행이 서로를 찾는다. */
+function renderList(){
+  $('#thWrap').classList.toggle('hide',MODE==='freq');   // 자주 간 곳은 거리와 무관하다
+  syncTileUI();
+  $('#cv').classList.toggle('pan',MODE==='freq');
+  $('#listTitle').textContent=MODE==='freq'?'자주 간 곳':'여행 목록';
+  if(MODE==='freq') return freqTable();
+  $('#tbl thead').innerHTML='<tr><th></th><th>기간</th><th>목적지</th><th class="r">박</th><th class="r">최대거리</th></tr>';
+  const T=ST.trips, L=MODE==='world'?T.filter(t=>t.abroad):T;
+  $('#tripCount').textContent=`${L.length}건`;
   const rows=[]; let year='';
-  T.forEach((t,i)=>{
+  L.forEach(t=>{
+    const i=T.indexOf(t);
     const y=dstr(t.a).slice(0,4);
     let yc='';                                     // 연도는 그 해 첫 행에서 rowspan 으로 묶는다
     if(y!==year){
       year=y;
-      const span=T.filter(x=>dstr(x.a).slice(0,4)===y).length;
+      const span=L.filter(x=>dstr(x.a).slice(0,4)===y).length;
       yc=`<td class="yr" rowspan="${span}">${y}</td>`;
     }
     const main=t.places[0]?t.places[0].name:'—';
@@ -525,8 +631,23 @@ async function render(){
       <td class="r">${t.nights}</td>
       <td class="r">${Math.round(t.km).toLocaleString()}km</td></tr>`);
   });
-  $('#tbl tbody').innerHTML=rows.join('')||'<tr><td colspan="5" style="color:var(--ink2)">기준 거리 내에서 벗어난 일정이 없습니다.</td></tr>';
-  draw();
+  $('#tbl tbody').innerHTML=rows.join('')||`<tr><td colspan="5" style="color:var(--ink2)">${
+    MODE==='world'?'해외로 나간 기록이 없습니다.':'기준 거리 내에서 벗어난 일정이 없습니다.'}</td></tr>`;
+}
+
+/* 자주 간 곳 — 여행 기준 거리와 무관하게 며칠에 걸쳐 들렀는지로 줄을 세운다 */
+function freqTable(){
+  const F=ST.freq||[];
+  $('#tripCount').textContent=`${F.length}곳`;
+  $('#tbl thead').innerHTML='<tr><th class="r">방문</th><th>장소</th><th class="r">체류</th><th class="r">평균</th><th class="r">합계</th><th class="nw">마지막</th></tr>';
+  $('#tbl tbody').innerHTML=F.map((f,i)=>`<tr data-f="${i}">
+      <td class="r nw">${f.days.toLocaleString()}일</td>
+      <td><span class="dest">${f.name}</span><div class="via">${f.where}</div></td>
+      <td class="r">${f.visits.toLocaleString()}번</td>
+      <td class="r nw">${durStr(f.mins/f.visits)}</td>
+      <td class="r nw">${durStr(f.mins)}</td>
+      <td class="nw">${dstr(f.last)}</td></tr>`).join('')
+    ||'<tr><td colspan="6" style="color:var(--ink2)">되풀이해 들른 곳이 없습니다.</td></tr>';
 }
 
 /* "충청남도 천안시 동남구" -> "천안시" — a bare 구 name is not a destination */
@@ -586,56 +707,88 @@ function localBounds(){
   const px=Math.max((r-l)*.18,.6), py=Math.max((t2-b)*.18,.6);
   return [l-px,b-py,r+px,t2+py];
 }
-let MK=[];
+/* 자주 간 곳은 집 둘레에 몰려 있어 전국 지도로 잡으면 한 덩어리가 된다.
+   방문 일수의 9할을 담는 데까지만 범위로 쓰고, 밖으로 밀려난 곳은 세어 둔다. */
+function freqBounds(F){
+  const tot=F.reduce((s,f)=>s+f.days,0);
+  const keep=[]; let acc=0;
+  for(const f of F){ keep.push(f.pos); acc+=f.days; if(acc>=tot*.9) break; }
+  return keep;
+}
+let MK=[], FVIEW=null, FMV=null;   // 자주 간 곳 지도에서 손으로 잡은 뷰 / 지금 그려진 뷰
 function draw(){
   const cv=$('#cv'), W=cv.clientWidth||900;
-  const [l,b,r,t]=MODE==='kr'?localBounds():BOUNDS.world;
-  const Hpx=MODE==='kr'?560:Math.round(Math.min(W*0.5,520));
+  // 자주 간 곳은 여행이 아니라 되풀이해 들른 지점을 같은 국내 지도 위에 얹는다
+  const FQ=MODE==='freq'?(ST.freq||[]).slice(0,FREQN):null;
+  const Hpx=MODE==='world'?Math.round(Math.min(W*0.5,520)):560;
   const dpr=devicePixelRatio||1;
   cv.width=W*dpr; cv.height=Hpx*dpr; cv.style.height=Hpx+'px';
   const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
   g.clearRect(0,0,W,Hpx);
-  // uniform scale so the map keeps its shape, then centre it in the canvas
-  const kx=Math.cos((b+t)/2*D), dw=(r-l)*kx, dh=t-b;
-  const sc=Math.min(W/dw,Hpx/dh), ox=(W-dw*sc)/2, oy=(Hpx-dh*sc)/2;
-  const X=lo=>ox+(lo-l)*kx*sc, Y=la=>oy+(t-la)*sc;
-
-  const grp=MODE==='kr'?(REG.get(HOME_CC)||[]):GEO.world;
-  g.lineWidth=.6; g.strokeStyle='#fff';
-  const visited=new Set();
-  for(const tp of ST.trips) for(const c of tp.top){
-    const f=hitPoly(grp,c[0],c[1]); if(f) visited.add(f);
-  }
-  for(const f of grp){
-    g.fillStyle=visited.has(f)?'#bfdbfe':'#eceff3';
-    for(const ring of f[1]){
-      g.beginPath(); g.moveTo(X(ring[0]),Y(ring[1]));
-      for(let i=2;i<ring.length;i+=2) g.lineTo(X(ring[i]),Y(ring[i+1]));
-      g.closePath(); g.fill(); g.stroke();
+  const h=ST.H.at(ST.dayList[ST.dayList.length-1]);
+  let X,Y;
+  if(FQ){
+    // 자주 간 곳은 한 동네 안에서 몇 백 미터를 가른다. 행정구역 외곽선으로는
+    // 어디인지 안 읽히므로 상세 지도와 같은 웹 메르카토르로 잡고 배경 지도를 얹는다.
+    const V=FVIEW||fitTrip(freqBounds(FQ).concat([h]),W,Hpx); if(!V) return;
+    FMV=V;
+    const wl=lo=>V.wrap&&lo<0?lo+360:lo;
+    X=(la,lo)=>merc(la,wl(lo),V.z)[0]+V.ox; Y=(la,lo)=>merc(la,wl(lo),V.z)[1]+V.oy;
+    drawBackdrop(g,V,W,Hpx,X,Y,new Set([HOME_CC]));
+  } else {
+    const [l,b,r,t]=MODE==='world'?BOUNDS.world:localBounds();
+    // uniform scale so the map keeps its shape, then centre it in the canvas
+    const kx=Math.cos((b+t)/2*D), dw=(r-l)*kx, dh=t-b;
+    const sc=Math.min(W/dw,Hpx/dh), ox=(W-dw*sc)/2, oy=(Hpx-dh*sc)/2;
+    X=(la,lo)=>ox+(lo-l)*kx*sc; Y=(la,lo)=>oy+(t-la)*sc;
+    const grp=MODE==='world'?GEO.world:(REG.get(HOME_CC)||[]);
+    g.lineWidth=.6; g.strokeStyle='#fff';
+    const visited=new Set();
+    for(const tp of ST.trips) for(const c of tp.top){
+      const f=hitPoly(grp,c[0],c[1]); if(f) visited.add(f);
+    }
+    for(const f of grp){
+      g.fillStyle=visited.has(f)?'#bfdbfe':'#eceff3';
+      for(const ring of f[1]){
+        g.beginPath(); g.moveTo(X(ring[1],ring[0]),Y(ring[1],ring[0]));
+        for(let i=2;i<ring.length;i+=2) g.lineTo(X(ring[i+1],ring[i]),Y(ring[i+1],ring[i]));
+        g.closePath(); g.fill(); g.stroke();
+      }
     }
   }
-  // home marker
-  const h=ST.H.at(ST.dayList[ST.dayList.length-1]);
-  MK=[];
-  for(const tp of ST.trips){
-    const c=tp.top[0]; if(!c) continue;
-    const x=X(c[1]), y=Y(c[0]);
-    if(x<-20||x>W+20||y<-20||y>Hpx+20) continue;
-    MK.push({x,y,t:tp});
+  MK=[]; let off=0;
+  for(const it of (FQ||ST.trips)){
+    const c=FQ?it.pos:it.top[0]; if(!c) continue;
+    const x=X(c[0],c[1]), y=Y(c[0],c[1]);
+    if(x<-20||x>W+20||y<-20||y>Hpx+20){off++; continue;}
+    MK.push(FQ?{x,y,f:it}:{x,y,t:it});
   }
-  g.globalAlpha=.28; g.strokeStyle='#3b82f6'; g.lineWidth=1;
-  const hx=X(h[1]),hy=Y(h[0]);
-  // bow each line perpendicular to itself so the fan reads as separate routes,
-  // always to the north side so the fan reads like a flight map
-  for(const m of MK){
-    const dx=m.x-hx, dy=m.y-hy, k=.15, s=dx>0?-1:1;
-    g.beginPath(); g.moveTo(hx,hy);
-    g.quadraticCurveTo((hx+m.x)/2-s*dy*k, (hy+m.y)/2+s*dx*k, m.x, m.y);
-    g.stroke();
+  // 범위를 좁힌 만큼 밖으로 나간 곳이 생긴다. 말없이 빼면 다 보이는 줄 안다.
+  // 말없이 줄이면 다 보이는 줄 안다. 확대해서 밀려난 것과 애초에 안 얹은 것은
+  // 이유가 달라서 따로 적는다.
+  const cut=FQ?ST.freq.length-FQ.length:0, said=[];
+  if(off) said.push(`화면 밖 ${off}곳`);
+  if(cut) said.push(`자주 간 순으로 ${FQ.length}곳만 얹음`);
+  $('#mapnote').textContent=said.length
+    ? `${said.join(' · ')} — 아래 목록에는 ${ST.freq.length}곳이 다 있습니다.` : '';
+  const hx=X(h[0],h[1]),hy=Y(h[0],h[1]);
+  // 여행은 집에서 뻗어 나간 선으로 읽히지만, 자주 간 곳은 한 번의 나들이가
+  // 아니라 되풀이한 지점이라 선을 긋지 않는다
+  if(!FQ){
+    g.globalAlpha=.28; g.strokeStyle='#3b82f6'; g.lineWidth=1;
+    // bow each line perpendicular to itself so the fan reads as separate routes,
+    // always to the north side so the fan reads like a flight map
+    for(const m of MK){
+      const dx=m.x-hx, dy=m.y-hy, k=.15, s=dx>0?-1:1;
+      g.beginPath(); g.moveTo(hx,hy);
+      g.quadraticCurveTo((hx+m.x)/2-s*dy*k, (hy+m.y)/2+s*dx*k, m.x, m.y);
+      g.stroke();
+    }
+    g.globalAlpha=1;
   }
-  g.globalAlpha=1;
   for(const m of MK){
-    const rad=4+Math.min(m.t.nights,10)*.9;
+    // 넓이가 방문 일수에 비례하도록 반지름은 sqrt 로 잡는다
+    const rad=m.f?Math.max(4,Math.min(17,Math.sqrt(m.f.days)*1.1)):4+Math.min(m.t.nights,10)*.9;
     g.beginPath(); g.arc(m.x,m.y,rad,0,7);
     g.fillStyle='rgba(59,130,246,.75)'; g.fill();
     g.strokeStyle='#fff'; g.lineWidth=1.5; g.stroke();
@@ -648,15 +801,22 @@ function draw(){
   // labels with naive collision avoidance
   const boxes=[[hx+6,hy-8,hx+26,hy+8]], drawn=new Set();
   g.font='11px -apple-system,"KoddiUD OnGothic",sans-serif';
-  for(const m of [...MK].sort((a,b)=>b.t.nights-a.t.nights)){
-    const s=m.t.places[0]?shortName(m.t.places[0].name):''; if(!s||drawn.has(s)) continue;
+  const weight=m=>m.f?m.f.days:m.t.nights;
+  for(const m of [...MK].sort((a,b)=>weight(b)-weight(a))){
+    const s=m.f?m.f.name:(m.t.places[0]?shortName(m.t.places[0].name):''); if(!s||drawn.has(s)) continue;
     drawn.add(s);
-    const w=g.measureText(s).width, x=m.x+8, y=m.y+4;
-    const bx=[x-2,y-9,x+w+2,y+3];
-    if(boxes.some(o=>bx[0]<o[2]&&bx[2]>o[0]&&bx[1]<o[3]&&bx[3]>o[1])) continue;
-    boxes.push(bx);
-    g.fillStyle='rgba(255,255,255,.8)'; g.fillRect(bx[0],bx[1],w+4,12);
-    g.fillStyle='#374151'; g.fillText(s,x,y);
+    // 오른쪽 한 자리만 보면 가장 큰 곳의 이름이 집 라벨에 밀려 통째로 빠진다.
+    // 왼쪽·위·아래까지 넘겨보고 그래도 자리가 없을 때만 접는다.
+    const w=g.measureText(s).width;
+    let put=null;
+    for(const[x,y]of [[m.x+8,m.y+4],[m.x-w-8,m.y+4],[m.x-w/2,m.y-10],[m.x-w/2,m.y+18]]){
+      const bx=[x-2,y-9,x+w+2,y+3];
+      if(!boxes.some(o=>bx[0]<o[2]&&bx[2]>o[0]&&bx[1]<o[3]&&bx[3]>o[1])){put=[x,y,bx];break;}
+    }
+    if(!put) continue;
+    boxes.push(put[2]);
+    g.fillStyle='rgba(255,255,255,.8)'; g.fillRect(put[2][0],put[2][1],w+4,12);
+    g.fillStyle='#374151'; g.fillText(s,put[0],put[1]);
   }
 }
 
@@ -696,7 +856,8 @@ function drawTiles(g,V,W,H){
       im=new Image();       // crossOrigin 은 설정하지 않는다. 픽셀을 읽지 않으므로
                             // 불필요하고, CORS 헤더가 없는 응답에서 오히려 실패한다.
       // 타일이 도착할 때마다 다시 그린다. 프레임당 한 번으로 묶는다.
-      im.onload=()=>{if(CUR&&!TRAF) TRAF=requestAnimationFrame(()=>{TRAF=0;drawDetail();});};
+      im.onload=()=>{if(!TRAF) TRAF=requestAnimationFrame(()=>{
+        TRAF=0; if(CUR) drawDetail(); else if(ST&&ST.trips&&MODE==='freq') draw();});};
       im.onerror=()=>{};                      // 실패한 타일은 벡터 없이 빈 칸으로 둔다
       im.src='https://a.basemaps.cartocdn.com/light_all/'+tz+'/'+tx+'/'+y+'.png';
       if(TILEC.size>=400) TILEC.delete(TILEC.keys().next().value); // FIFO 상한 — 세션이 길어져도 무한정 쌓이지 않게
@@ -708,10 +869,12 @@ function drawTiles(g,V,W,H){
 }
 
 /* 배경. 기본은 벡터, 켜면 타일. */
-function drawBackdrop(g,V,W,H,X,Y){
+function drawBackdrop(g,V,W,H,X,Y,ccs){
   if(TILES) return drawTiles(g,V,W,H);
-  const ccs=new Set(CUR.places.map(p=>p.cc).filter(Boolean));
-  if(HOME_CC) ccs.add(HOME_CC);
+  if(!ccs){
+    ccs=new Set(CUR.places.map(p=>p.cc).filter(Boolean));
+    if(HOME_CC) ccs.add(HOME_CC);
+  }
   g.lineWidth=.6; g.strokeStyle='#fff'; g.fillStyle='#eceff3';
   for(const cc of ccs) for(const f of (REG.get(cc)||[])){
     for(let k=0;k<f[1].length;k++){
@@ -728,16 +891,21 @@ function drawBackdrop(g,V,W,H,X,Y){
 
 function drawDetail(){
   const t=CUR; if(!t) return;
-  const cv=$('#mcv'), W=cv.clientWidth||860, H=Math.round(Math.min(W*.52,440));
+  const cv=$('#mcv'), W=cv.clientWidth||860;
+  // 좁은 화면에서 16:9 로 눕히면 지도가 우표만 해진다. 정사각형으로 키우되
+  // 화면 높이를 넘지 않게 잡아 날짜 칩이 화면 밖으로 밀리지 않도록 한다.
+  const H=Math.round(W<=600?Math.min(W,innerHeight*.72):Math.min(W*.52,440));
   const dpr=devicePixelRatio||1;
   cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px';
   const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
   g.clearRect(0,0,W,H);
 
-  const DD=tripDays(t);
-  const all=[].concat(...DD.map(r=>r.pts));
+  // 장소 상세는 몇 해에 걸친 방문을 한 화면에 얹으므로 날짜별 경로를 긋지 않는다
+  const place=t.kind==='place';
+  const DD=place?[]:tripDays(t);
+  const all=place?t.vs.map(v=>v.pos):[].concat(...DD.map(r=>r.pts));
   // 날짜를 고르면 그 날에 맞춰 다시 확대한다. 전체 보기로는 도시 안 이동이 안 보인다.
-  const fitPts=(SEL!=null&&(ST.days.get(SEL)||[]).length)?ST.days.get(SEL):all;
+  const fitPts=(!place&&SEL!=null&&(ST.days.get(SEL)||[]).length)?ST.days.get(SEL):all;
   // 손으로 확대·이동했으면 그 뷰를 쓴다. 타일에 상호·도로명이 있어서
   // 충분히 당기면 어디였는지 API 없이 읽힌다.
   const V=VIEW||fitTrip(fitPts,W,H); if(!V) return;
@@ -747,6 +915,21 @@ function drawDetail(){
   const X=(la,lo)=>merc(la,wl(lo),V.z)[0]+V.ox, Y=(la,lo)=>merc(la,wl(lo),V.z)[1]+V.oy;
 
   drawBackdrop(g,V,W,H,X,Y);
+
+  // 장소 상세는 그 곳에 간 날의 이동 경로를 겹쳐 옅게 깐다. 몇 백 번이 포개지면
+  // 늘 다니는 길이 저절로 진해진다. 화면 밖은 잘려서 접근로만 남는다.
+  if(place){
+    g.globalAlpha=.09; g.lineWidth=1; g.strokeStyle='#2563eb';
+    const seen=new Set();
+    for(const v of t.vs){
+      if(seen.has(v.d)) continue; seen.add(v.d);
+      const ps=ST.days.get(v.d); if(!ps||ps.length<2) continue;
+      g.beginPath(); g.moveTo(X(ps[0][0],ps[0][1]),Y(ps[0][0],ps[0][1]));
+      for(let k=1;k<ps.length;k++) g.lineTo(X(ps[k][0],ps[k][1]),Y(ps[k][0],ps[k][1]));
+      g.stroke();
+    }
+    g.globalAlpha=1;
+  }
 
   // 날짜별 경로 — 첫날이 가장 옅고 마지막 날이 가장 진하다
   const nd=Math.max(DD.length-1,1);
@@ -767,7 +950,7 @@ function drawDetail(){
   // 도시 하나가 화면을 채우는 정도(z>=10)부터 그린다 — 그보다 멀면 점끼리
   // 겹쳐 덩어리가 되고 위치도 구분이 안 된다.
   DWMK=[];
-  const showDW=V.z>=10&&DW.length>0;
+  const showDW=(place||V.z>=10)&&DW.length>0;   // 장소 상세는 체류 점이 본문이다
   for(const v of (showDW?DW:[])){
     const on=SEL==null||v.d===SEL;
     const r=Math.max(3.5,Math.min(14,Math.sqrt(v.mins)*.8));
@@ -841,24 +1024,32 @@ function tightName(nm){
   return nm.split(' ').pop();
 }
 
-/* 여행 기간의 체류 기록. ST.nights 는 이름과 달리 심야뿐 아니라 집이 아닌
-   모든 체류를 시각과 함께 담고 있다. 구글이 같은 체류를 상위/하위 장소로
-   겹쳐 기록하므로(visit.hierarchyLevel), 같은 격자에서 시간이 겹치면 긴 쪽만 남긴다. */
-function dwells(t){
-  const all=[];
-  for(const[st,en,p,off]of (ST.nights||[])){
-    const d=dayOf(st,p,off);
-    if(d<t.a||d>t.b) continue;
-    const mins=(en-st)/6e4;
-    if(!isFinite(mins)||mins<=0) continue;
-    all.push({d,st,en,mins,off,pos:p,k:p[0].toFixed(3)+','+p[1].toFixed(3)});
+/* 체류 기록 고르기. ST.nights 는 이름과 달리 심야뿐 아니라 집이 아닌 모든
+   체류를 시각과 함께 담고 있다. 구글이 같은 체류를 상위/하위 장소로 겹쳐
+   기록하므로(visit.hierarchyLevel), 같은 격자에서 시간이 겹치면 긴 쪽만 남긴다. */
+function dwellList(pick){
+  const by=new Map(), outer=[];
+  for(const[st,en,p,off,id,lvl,type]of (ST.nights||[])){
+    const d=dayOf(st,p,off), mins=(en-st)/6e4;
+    if(!isFinite(mins)||mins<=0||!pick(d,p)) continue;
+    // placeID 가 없는 내보내기는 약 100m 격자로 대신한다
+    const v={d,st,en,mins,off,pos:p,type,k:id||('@'+p[0].toFixed(3)+','+p[1].toFixed(3))};
+    if(lvl>0){outer.push(v); continue;}
+    if(!by.has(v.k)) by.set(v.k,[]);
+    by.get(v.k).push(v);
   }
-  all.sort((a,b)=>b.mins-a.mins);        // 긴 체류가 먼저 자리를 잡는다
   const keep=[];
-  for(const v of all)
-    if(!keep.some(w=>w.k===v.k&&v.st<w.en&&w.st<v.en)) keep.push(v);
+  for(const arr of by.values()){
+    arr.sort((a,b)=>b.mins-a.mins);      // 긴 체류가 먼저 자리를 잡는다
+    const ok=[];
+    for(const v of arr) if(!ok.some(w=>v.st<w.en&&w.st<v.en)) ok.push(v);
+    keep.push(...ok);
+  }
+  // 상위 구역 기록은 안쪽 장소와 시간이 겹치면 같은 체류를 두 번 세는 것이라 버린다
+  for(const v of outer) if(!keep.some(w=>v.st<w.en&&w.st<v.en)) keep.push(v);
   return keep.sort((a,b)=>a.st-b.st);
 }
+function dwells(t){ return dwellList(d=>d>=t.a&&d<=t.b); }
 
 /* 여행 중 현지 새벽 3시를 지나 머문 지점 = 숙소. buildHomes 의 심야 판정과
    같은 규칙이다. 출발·복귀일 밤은 집에서 자므로 집 근처는 뺀다. */
@@ -867,11 +1058,7 @@ function stays(t){
   for(const[st,en,p,off]of (ST.nights||[])){
     const d=dayOf(st,p,off);
     if(d<t.a||d>t.b) continue;
-    const o=off!=null?off:Math.round(p[1]/15)*36e5;
-    const h0=(st+o)/36e5, h1=(en+o)/36e5;
-    let over=false;
-    for(let h=Math.floor(h0);h<=Math.ceil(h1);h++) if(((h%24)+24)%24===3){over=true;break;}
-    if(!over||hav(H,p)<20) continue;
+    if(!overnight(st,en,p,off)||hav(H,p)<20) continue;
     const k=p[0].toFixed(2)+','+p[1].toFixed(2);
     if(!cl.has(k)) cl.set(k,{n:0,la:0,lo:0,days:new Set()});
     const c=cl.get(k); c.n++; c.la+=p[0]; c.lo+=p[1];
@@ -914,11 +1101,33 @@ function openTrip(t){
     `<span class="d">${y}.${range}</span><span class="m">${t.nights}박 · 최대 ${Math.round(t.km).toLocaleString()}km</span>
      <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>
      ${sv?`<div class="s">머문 곳 ${sv}</div>`:''}`;
+  setHint();
   $('#modal').classList.add('open');
   buildDays(t);
   // applyTiles 가 drawDetail 을 부른다 — 모달이 보이고 SEL 이 리셋된 뒤여야
   // clientWidth 와 fitPts 가 이 여행 기준으로 나온다. 순서를 바꾸면 안 된다.
   applyTiles(prefGet('tt.tiles')!=='0');   // 명시적으로 끈 적이 없으면 켠다
+}
+function setHint(){
+  $('#mapHint').textContent=matchMedia('(pointer:coarse)').matches
+    ? '두 손가락으로 확대 · 끌어서 이동 · 두 번 두드리면 원래대로'
+    : '휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로';
+}
+
+/* 자주 간 곳 상세. 지명이 시·군·구 단위라 "강남구 467일"만으로는 어디인지
+   모른다. 그 안 어느 지점을 되풀이해 들렀는지를 체류 점으로 펼쳐 보인다. */
+function openPlace(f){
+  CUR={kind:'place',a:f.first,b:f.last,places:[placeName(f.pos[0],f.pos[1])],vs:f.vs};
+  STAY=[]; DW=f.vs; SEL=null; VIEW=null;
+  $('#modalTitle').innerHTML=
+    `<span class="d">${f.name}</span><span class="m">${f.days.toLocaleString()}일 · ${f.visits.toLocaleString()}번</span>
+     <div class="p">${f.where}</div>
+     <div class="s">${dstr(f.first)} ~ ${dstr(f.last)} · 한 번에 평균 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·
+       ${f.pos[0].toFixed(5)}, ${f.pos[1].toFixed(5)}</div>`;
+  $('#days').innerHTML='';               // 날짜가 수백 개라 칩으로 세우지 않는다
+  setHint();
+  $('#modal').classList.add('open');
+  applyTiles(prefGet('tt.tiles')!=='0');
 }
 function closeTrip(){CUR=null;$('#modal').classList.remove('open');}
 
@@ -961,11 +1170,19 @@ function load(f){
   rd.readAsText(f);
 }
 $('#th').oninput=()=>{$('#thLbl').textContent=$('#th').value; if(ST) render();};
-$('#tabKr').onclick=()=>{MODE='kr';$('#tabKr').classList.add('on');$('#tabW').classList.remove('on');draw();};
-$('#tabW').onclick=()=>{MODE='world';$('#tabW').classList.add('on');$('#tabKr').classList.remove('on');draw();};
+const TABS={kr:'#tabKr',world:'#tabW',freq:'#tabF'};
+function setMode(m){
+  MODE=m;
+  for(const k in TABS) $(TABS[k]).classList.toggle('on',k===m);
+  renderList(); draw();
+}
+$('#tabKr').onclick=()=>setMode('kr');
+$('#tabW').onclick=()=>setMode('world');
+$('#tabF').onclick=()=>setMode('freq');
 addEventListener('resize',()=>{if(ST)draw();});
 
 $('#cv').onmousemove=e=>{
+  if(CPZ.down) return;                        // 끄는 중에는 툴팁을 접어 둔다
   const b=e.currentTarget.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
   let hit=null;
   for(const m of MK) if((m.x-x)**2+(m.y-y)**2<200){hit=m;break;}
@@ -975,9 +1192,12 @@ $('#cv').onmousemove=e=>{
     tip.style.display='block';
     tip.style.left=Math.min(e.clientX+12,innerWidth-230)+'px';
     tip.style.top=(e.clientY+14)+'px';
-    tip.innerHTML=`<b>${hit.t.places.map(p=>p.name).join(' · ')}</b><br>
-      ${dstr(hit.t.a)} ~ ${dstr(hit.t.b)} · ${hit.t.nights}박 · ${Math.round(hit.t.km)}km`;
-    const i=ST.trips.indexOf(hit.t), row=document.querySelector(`#tbl tr[data-i="${i}"]`);
+    tip.innerHTML=hit.f
+      ? `<b>${hit.f.name} · ${hit.f.where}</b><br>${hit.f.days.toLocaleString()}일 · ${hit.f.visits.toLocaleString()}번 · 마지막 ${dstr(hit.f.last)}`
+      : `<b>${hit.t.places.map(p=>p.name).join(' · ')}</b><br>
+         ${dstr(hit.t.a)} ~ ${dstr(hit.t.b)} · ${hit.t.nights}박 · ${Math.round(hit.t.km)}km`;
+    const sel=hit.f?`#tbl tr[data-f="${ST.freq.indexOf(hit.f)}"]`:`#tbl tr[data-i="${ST.trips.indexOf(hit.t)}"]`;
+    const row=document.querySelector(sel);
     if(row) row.classList.add('hl');
   } else tip.style.display='none';
 };
@@ -985,23 +1205,29 @@ $('#cv').onmouseleave=()=>{$('#tip').style.display='none';
   document.querySelectorAll('#tbl tr.hl').forEach(r=>r.classList.remove('hl'));};
 
 $('#dl').onclick=()=>{
-  const rows=[['시작','종료','박','최대거리km','목적지','경유','해외']].concat(
-    ST.trips.map(t=>[dstr(t.a),dstr(t.b),t.nights,Math.round(t.km),
-      t.places[0]?t.places[0].name:'',t.places.slice(1).map(p=>p.name).join(' / '),t.abroad?'Y':'']));
+  const rows=MODE==='freq'
+    ? [['지역','집에서','방문일수','체류횟수','평균체류분','합계시간','처음','마지막','위도','경도']].concat(
+        (ST.freq||[]).map(f=>[f.name,f.where,f.days,f.visits,Math.round(f.mins/f.visits),
+          Math.round(f.mins/60),dstr(f.first),dstr(f.last),f.pos[0].toFixed(5),f.pos[1].toFixed(5)]))
+    : [['시작','종료','박','최대거리km','목적지','경유','해외']].concat(
+        ST.trips.map(t=>[dstr(t.a),dstr(t.b),t.nights,Math.round(t.km),
+          t.places[0]?t.places[0].name:'',t.places.slice(1).map(p=>p.name).join(' / '),t.abroad?'Y':'']));
   const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='trips.csv'; a.click();
+  a.download=MODE==='freq'?'places.csv':'trips.csv'; a.click();
 };
 
 /* 표 행과 지도 마커 둘 다 상세를 연다 */
 $('#tbl').onclick=e=>{
-  const tr=e.target.closest('tr[data-i]'); if(!tr) return;
-  openTrip(ST.trips[+tr.dataset.i]);
+  const tr=e.target.closest('tr[data-i],tr[data-f]'); if(!tr) return;
+  if(tr.dataset.f!==undefined) openPlace(ST.freq[+tr.dataset.f]);
+  else openTrip(ST.trips[+tr.dataset.i]);
 };
 $('#cv').onclick=e=>{
+  if(CPZ.moved) return;                       // 지도를 끌어 옮긴 끝의 클릭이다
   const b=e.currentTarget.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
-  for(const m of MK) if((m.x-x)**2+(m.y-y)**2<200){openTrip(m.t);return;}
+  for(const m of MK) if((m.x-x)**2+(m.y-y)**2<200){m.f?openPlace(m.f):openTrip(m.t);return;}
 };
 $('#modalClose').onclick=closeTrip;
 $('#modal').onclick=e=>{if(e.target===$('#modal')) closeTrip();};
@@ -1017,82 +1243,85 @@ $('#days').onclick=e=>{
   drawDetail();
 };
 
-/* 휠·핀치로 확대, 끌어서 이동, 더블클릭·두 번 두드리기로 자동 맞춤 복귀 */
-$('#mcv').onwheel=e=>{
-  if(!CUR||!MV) return;
-  e.preventDefault();
-  const b=e.currentTarget.getBoundingClientRect();
-  const sx=e.clientX-b.left, sy=e.clientY-b.top;
-  // 이벤트당 한 레벨씩 옮기면 배율이 2배씩 튄다. 델타에 비례해 조금씩 옮긴다.
-  // 트랙패드는 한 번 쓸어도 이벤트를 수십 개 뿜으므로 계수가 작아야 한다.
-  // 핀치는 ctrlKey 로 오고 델타가 작아서 따로 키운다.
-  const dz=-e.deltaY/(e.ctrlKey?60:260);
-  const z=Math.max(0,Math.min(ZMAX,MV.z+dz));
-  if(z===MV.z) return;
-  // 커서 아래 지점이 제자리에 남도록 오프셋을 다시 잡는다
-  const k=Math.pow(2,z-MV.z);
-  VIEW={z,wrap:MV.wrap,ox:sx-(sx-MV.ox)*k,oy:sy-(sy-MV.oy)*k};
-  drawDetail();
-};
-/* 하나로 끌면 이동, 둘로 벌리면 확대. 마우스도 포인터 이벤트로 같은 길을 탄다.
-   두 손가락 중간점 아래의 지점이 제자리에 남도록 배율과 오프셋을 함께 잡는다. */
-let DRAG=null;                          // 끄는 중이면 툴팁을 접어 둔다
-const PTR=new Map();                    // 화면에 닿아 있는 포인터
-let GES=null, TAPT=0, TAPOK=false;
-function mpt(e){const b=$('#mcv').getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top};}
-/* 손가락이 늘거나 줄 때마다 지금 뷰를 기준으로 다시 잡는다.
-   그러지 않으면 한 손을 떼는 순간 지도가 튄다. */
-function regrip(){
-  const p=[...PTR.values()];
-  if(!p.length||!MV){GES=null;return;}
-  const base={z:MV.z,ox:MV.ox,oy:MV.oy,wrap:MV.wrap};
-  if(p.length===1){GES={n:1,cx:p[0].x,cy:p[0].y,base};return;}
-  GES={n:2,cx:(p[0].x+p[1].x)/2,cy:(p[0].y+p[1].y)/2,
-       d:Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)||1,base};
+/* 휠·핀치로 확대, 끌어서 이동, 더블클릭·두 번 두드리기로 자동 맞춤 복귀.
+   상세 지도와 자주 간 곳 지도가 같은 코드를 쓴다. get 은 지금 그려진 뷰(없으면
+   조작을 받지 않는다), set 은 손으로 잡은 뷰(null 이면 자동 맞춤으로 되돌린다). */
+function bindPanZoom(el,get,set,redraw){
+  const PTR=new Map();
+  let GES=null, TAPT=0, TAPOK=false, MOVED=false;
+  const pt=e=>{const b=el.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top};};
+  /* 손가락이 늘거나 줄 때마다 지금 뷰를 기준으로 다시 잡는다.
+     그러지 않으면 한 손을 떼는 순간 지도가 튄다. */
+  function regrip(){
+    const V=get(), p=[...PTR.values()];
+    if(!p.length||!V){GES=null;return;}
+    const base={z:V.z,ox:V.ox,oy:V.oy,wrap:V.wrap};
+    if(p.length===1){GES={n:1,cx:p[0].x,cy:p[0].y,base};return;}
+    GES={n:2,cx:(p[0].x+p[1].x)/2,cy:(p[0].y+p[1].y)/2,
+         d:Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)||1,base};
+  }
+  el.onwheel=e=>{
+    const V=get(); if(!V) return;
+    e.preventDefault();
+    const s=pt(e);
+    // 이벤트당 한 레벨씩 옮기면 배율이 2배씩 튄다. 델타에 비례해 조금씩 옮긴다.
+    // 트랙패드는 한 번 쓸어도 이벤트를 수십 개 뿜으므로 계수가 작아야 한다.
+    // 핀치는 ctrlKey 로 오고 델타가 작아서 따로 키운다.
+    const z=Math.max(0,Math.min(ZMAX,V.z-e.deltaY/(e.ctrlKey?60:260)));
+    if(z===V.z) return;
+    const k=Math.pow(2,z-V.z);        // 커서 아래 지점이 제자리에 남도록 오프셋을 다시 잡는다
+    set({z,wrap:V.wrap,ox:s.x-(s.x-V.ox)*k,oy:s.y-(s.y-V.oy)*k});
+    redraw();
+  };
+  el.onpointerdown=e=>{
+    if(!get()) return;
+    e.preventDefault();
+    try{el.setPointerCapture(e.pointerId);}catch(err){}
+    PTR.set(e.pointerId,pt(e));
+    TAPOK=PTR.size===1;               // 두 번째 손가락이 오면 두드림이 아니다
+    if(PTR.size===1) MOVED=false;     // 끌지 않고 뗐으면 클릭으로 살려 둔다
+    regrip();
+    el.classList.add('drag');
+  };
+  el.onpointermove=e=>{
+    if(!PTR.has(e.pointerId)||!GES) return;
+    PTR.set(e.pointerId,pt(e));
+    const p=[...PTR.values()], B=GES.base;
+    if(GES.n===1&&p.length===1){
+      if(Math.hypot(p[0].x-GES.cx,p[0].y-GES.cy)>12){TAPOK=false;MOVED=true;}
+      set({z:B.z,wrap:B.wrap,ox:B.ox+(p[0].x-GES.cx),oy:B.oy+(p[0].y-GES.cy)});
+    }else if(GES.n===2&&p.length>=2){
+      const d=Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)||1;
+      const cx=(p[0].x+p[1].x)/2, cy=(p[0].y+p[1].y)/2;
+      const z=Math.max(0,Math.min(ZMAX,B.z+Math.log2(d/GES.d)));
+      const k=Math.pow(2,z-B.z);      // 배율을 잘랐을 수 있으니 z 차이에서 다시 뽑는다
+      MOVED=true;
+      set({z,wrap:B.wrap,ox:cx-(GES.cx-B.ox)*k,oy:cy-(GES.cy-B.oy)*k});
+    }else return;
+    redraw();
+  };
+  const lift=e=>{
+    if(!PTR.delete(e.pointerId)) return;
+    regrip();
+    if(!PTR.size) el.classList.remove('drag');
+  };
+  el.onpointerup=e=>{
+    const solo=PTR.size===1;
+    lift(e);
+    // 손가락에는 더블클릭이 오지 않는다. 두 번 두드리면 자동 맞춤으로 돌린다
+    if(e.pointerType!=='touch'||!solo||!TAPOK) return;
+    if(e.timeStamp-TAPT<300){TAPT=0;set(null);redraw();} else TAPT=e.timeStamp;
+  };
+  el.onpointercancel=lift;
+  el.ondblclick=()=>{if(get()){set(null);redraw();}};
+  return {get down(){return PTR.size>0;}, get moved(){return MOVED;}};
 }
-$('#mcv').onpointerdown=e=>{
-  if(!CUR||!MV) return;
-  e.preventDefault();
-  try{$('#mcv').setPointerCapture(e.pointerId);}catch(err){}
-  PTR.set(e.pointerId,mpt(e));
-  TAPOK=PTR.size===1;                   // 두 번째 손가락이 오면 두드림이 아니다
-  regrip();
-  DRAG=true;
-  $('#mcv').classList.add('drag');
-};
-$('#mcv').onpointermove=e=>{
-  if(!PTR.has(e.pointerId)||!GES) return;
-  PTR.set(e.pointerId,mpt(e));
-  const p=[...PTR.values()], B=GES.base;
-  if(GES.n===1&&p.length===1){
-    if(Math.hypot(p[0].x-GES.cx,p[0].y-GES.cy)>12) TAPOK=false;
-    VIEW={z:B.z,wrap:B.wrap,ox:B.ox+(p[0].x-GES.cx),oy:B.oy+(p[0].y-GES.cy)};
-  }else if(GES.n===2&&p.length>=2){
-    const d=Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)||1;
-    const cx=(p[0].x+p[1].x)/2, cy=(p[0].y+p[1].y)/2;
-    const z=Math.max(0,Math.min(ZMAX,B.z+Math.log2(d/GES.d)));
-    const k=Math.pow(2,z-B.z);          // 배율을 잘랐을 수 있으니 z 차이에서 다시 뽑는다
-    VIEW={z,wrap:B.wrap,ox:cx-(GES.cx-B.ox)*k,oy:cy-(GES.cy-B.oy)*k};
-  }else return;
-  drawDetail();
-};
-function liftPtr(e){
-  if(!PTR.delete(e.pointerId)) return;
-  regrip();
-  if(!PTR.size){DRAG=null;$('#mcv').classList.remove('drag');}
-}
-$('#mcv').onpointerup=e=>{
-  const solo=PTR.size===1;
-  liftPtr(e);
-  // 손가락에는 더블클릭이 오지 않는다. 두 번 두드리면 자동 맞춤으로 돌린다
-  if(e.pointerType!=='touch'||!solo||!TAPOK) return;
-  if(e.timeStamp-TAPT<300){TAPT=0;VIEW=null;drawDetail();} else TAPT=e.timeStamp;
-};
-$('#mcv').onpointercancel=liftPtr;
-$('#mcv').ondblclick=()=>{VIEW=null;drawDetail();};
+const MPZ=bindPanZoom($('#mcv'), ()=>CUR?MV:null, v=>{VIEW=v;}, drawDetail);
+// 자주 간 곳 지도만 조작을 받는다. 국내·세계는 전국·세계 한 장이라 옮길 곳이 없다.
+const CPZ=bindPanZoom($('#cv'), ()=>MODE==='freq'?FMV:null, v=>{FVIEW=v;}, ()=>draw());
 /* 체류 점은 크기로만 시간을 나타내므로 올려두면 시각과 머문 시간을 보여준다 */
 $('#mcv').onmousemove=e=>{
-  if(DRAG) return;
+  if(MPZ.down) return;
   const b=e.currentTarget.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
   let hit=null;
   for(const m of DWMK) if((m.x-x)**2+(m.y-y)**2<=(m.r+3)**2){hit=m;break;}
@@ -1109,14 +1338,22 @@ $('#mcv').onmouseleave=()=>{$('#tip').style.display='none';};
 
 /* 여행을 열 때는 저장된 선택을 반영만(applyTiles) 하고, 누를 때만 기록한다(setTiles).
    반영이 기록까지 하면 여는 것만으로 키가 생겨 "끈 적 없음"과 "꺼 둠"을 구분할 수 없다. */
+function syncTileUI(){
+  $('#tiles').classList.toggle('on',TILES);
+  $('#attr').classList.toggle('hide',!TILES);
+  $('#tilesMain').classList.toggle('on',TILES);
+  $('#tilesMain').classList.toggle('hide',MODE!=='freq');   // 벡터로 그리는 탭에는 쓸 곳이 없다
+  $('#attrMain').classList.toggle('hide',!TILES||MODE!=='freq');
+}
 function applyTiles(v){
   TILES=v;
-  $('#tiles').classList.toggle('on',v);
-  $('#attr').classList.toggle('hide',!v);
+  syncTileUI();
+  if(ST&&ST.trips) draw();
   drawDetail();
 }
 function setTiles(v){ prefSet('tt.tiles',v?'1':'0'); applyTiles(v); }
 $('#tiles').onclick=()=>setTiles(!TILES);
+$('#tilesMain').onclick=()=>setTiles(!TILES);
 </script>
 </body>
 </html>

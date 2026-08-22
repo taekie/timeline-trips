@@ -133,6 +133,51 @@ vm.runInContext(code, ctx);
   eq(mixed[1].map(p => p[0]).join(','),
      '37.51,37.51,37.52,37.52,37.53,37.53', '하루 안 지점이 시간순');
 
+  // --- 집에 들렀다 다시 떠나면 별개 여행 -------------------------------------
+  // 여행이 끝났다는 신호는 낮에 얼마나 멀리 갔느냐가 아니라 그 밤을 집에서 잤느냐다.
+  // 기준 거리를 낮추면 집 앞 나들이까지 "먼 날"이 되어 두 여행 사이가 메워진다.
+  const HOME = [37.5665, 126.9780], SUWON = [37.2636, 127.0286],   // 집에서 34km
+        GANG = [37.7519, 128.8761], MOKPO = [34.7936, 126.3886],   // 168km / 313km
+        SOKCHO = [38.2070, 128.5918];                              // 강릉에서 52km
+  const dayN = n => new Date(Date.UTC(2025, 0, 1) + n * 864e5).toISOString().slice(0, 10);
+  // 밤 체류는 현지 새벽 3시를 넘겨야 "그 곳에서 잤다"로 읽힌다
+  const night = (n, p, type) => visit(`${dayN(n)}T22:00:00.000+09:00`,
+    `${dayN(n + 1)}T08:00:00.000+09:00`, p[0], p[1], type);
+  const noon = (n, p) => visit(`${dayN(n)}T12:00:00.000+09:00`,
+    `${dayN(n)}T14:00:00.000+09:00`, p[0], p[1], 'RESTAURANT');
+  // 집 120일 + 여행 A(강릉 5일) + 집 이틀(낮에는 수원) + 여행 B 5일
+  const trip2 = (awayB) => {
+    const g = [];
+    for (let i = 0; i < 200; i++) {
+      if (i >= 120 && i <= 131) continue;
+      g.push(night(i, HOME, 'INFERRED_HOME'), noon(i, HOME));
+    }
+    for (let i = 120; i <= 124; i++) g.push(night(i, GANG, 'LODGING'), noon(i, GANG));
+    for (let i = 125; i <= 126; i++) g.push(night(i, HOME, 'INFERRED_HOME'), noon(i, SUWON));
+    for (let i = 127; i <= 131; i++) g.push(night(i, awayB, 'LODGING'), noon(i, awayB));
+    return ctx.analyse({semanticSegments: g});
+  };
+  const FAR = trip2(MOKPO), NEAR = trip2(SOKCHO);
+  // 기준 거리를 낮추면 수원 나들이가 빈틈을 메워 두 여행이 붙어 버렸다
+  eq(ctx.trips(FAR, 80).length, 2, '기준 80km: 강릉·목포는 별개 여행');
+  assert.ok(ctx.trips(FAR, 30).filter(t => t.nights >= 3).length === 2,
+    '기준 30km: 집에서 잔 이틀이 강릉·목포를 갈라놓는다'); n++;
+  // 목적지가 가까우면(강릉 → 속초) 두 번째 단계가 다시 붙인다
+  eq(ctx.trips(NEAR, 80).length, 2, '기준 80km: 집에서 잤으면 가까운 목적지도 안 합친다');
+  // 집에서 잔 밤이 없으면 예전처럼 하나로 이어져야 한다 (중간이 비어도 한 여행)
+  const CONT = (() => {
+    const g = [];
+    for (let i = 0; i < 200; i++) {
+      if (i >= 120 && i <= 131) continue;
+      g.push(night(i, HOME, 'INFERRED_HOME'), noon(i, HOME));
+    }
+    for (let i = 120; i <= 124; i++) g.push(night(i, GANG, 'LODGING'), noon(i, GANG));
+    for (let i = 125; i <= 126; i++) g.push(night(i, GANG, 'LODGING'));   // 낮 기록만 빠진 이틀
+    for (let i = 127; i <= 131; i++) g.push(night(i, SOKCHO, 'LODGING'), noon(i, SOKCHO));
+    return ctx.analyse({semanticSegments: g});
+  })();
+  eq(ctx.trips(CONT, 80).length, 1, '집에 안 들렀으면 낮 기록이 비어도 한 여행');
+
   // --- end-to-end (needs a real export) -----------------------------------
   if (fs.existsSync(__dirname + '/lh.json')) {
     const raw = JSON.parse(fs.readFileSync(__dirname + '/lh.json', 'utf8'));
