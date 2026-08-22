@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>여행 타임라인 — Google Timeline 여행 추출기</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%233b82f6'/><path d='M8 24c5 0 4-7 8-8s3-8 8-8' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-dasharray='3.4 3.4'/><circle cx='8' cy='24' r='3.4' fill='%23fff'/><circle cx='24' cy='8' r='3.4' fill='%23fff'/></svg>">
 <style>
 :root{
   --blue:#3b82f6; --blue-d:#2563eb; --blue-l:#dbeafe;
@@ -27,7 +28,9 @@ p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
   padding:44px 20px;text-align:center;cursor:pointer}
 #drop.over{border-color:var(--blue);background:var(--blue-l)}
 #drop b{display:block;font-size:16px;margin-bottom:6px}
-#drop span{color:var(--ink2);font-size:13px}
+#drop span{color:var(--ink2);font-size:13px;display:block;line-height:1.6}
+#drop a{color:var(--blue-d);font-weight:600}
+#drop span kbd{font:inherit;color:var(--ink);font-weight:600}
 #status{margin-top:14px;font-size:13px;color:var(--ink2);min-height:20px}
 #status.err{color:#dc2626}
 
@@ -118,8 +121,13 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세와 자주 간 곳 지도는 OpenStreetMap 타일을 배경으로 깔기 때문에, 그 두 지도를 여는 동안에는 보고 있는 지역의 타일 좌표가 타일 서버에 전달됩니다. 위치 기록 자체는 어디로도 나가지 않습니다.</p>
 
 <div id="drop">
-  <b>location-history.json 을 여기에 끌어다 놓으세요</b>
-  <span>또는 클릭해서 선택 · Google 지도 앱 → 설정 → 위치 기록 → 타임라인 데이터 내보내기</span>
+  <b>타임라인 JSON 파일을 여기에 끌어다 놓으세요</b>
+  <div id="dropHow">
+    <span>또는 클릭해서 선택. 내보내는 곳이 기기마다 다릅니다.</span>
+    <span><kbd>iPhone</kbd> Google 지도 앱 → 프로필 → ⋯ → 위치 및 개인정보 설정 → 타임라인 데이터 내보내기 → 파일에 저장 (location-history.json)</span>
+    <span><kbd>Android</kbd> 휴대폰 설정 → 위치 → 타임라인 → 타임라인 데이터 내보내기 (Timeline.json)</span>
+    <span>기록이 없어도 <a href="#" id="demo">샘플 데이터로 둘러보기</a></span>
+  </div>
   <input type="file" id="file" accept=".json,application/json" class="hide">
 </div>
 <div id="status"></div>
@@ -1164,6 +1172,14 @@ drop.ondragleave=()=>drop.classList.remove('over');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');
   if(e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);};
 $('#file').onchange=e=>{if(e.target.files[0]) load(e.target.files[0]);};
+/* 기록이 없어도 둘러볼 수 있게 지어낸 2년치를 얹는다. 실존 인물의 기록이 아니다. */
+$('#demo').onclick=e=>{
+  e.preventDefault(); e.stopPropagation();          // #drop 의 파일 선택까지 열리지 않게
+  msg('샘플 데이터 받는 중…');
+  fetch('sample.json').then(r=>r.ok?r.blob():Promise.reject(new Error('샘플을 받지 못했습니다.')))
+    .then(bl=>{const f=new File([bl],'sample.json',{type:'application/json'}); load(f);})
+    .catch(err=>msg(err.message,1));
+};
 
 function load(f){
   if(!GEO){msg('경계 데이터를 아직 불러오는 중입니다. 잠시 후 다시 시도하세요.',1);return;}
@@ -1180,7 +1196,7 @@ function load(f){
         await render();
         drop.style.padding='18px 20px';
         drop.querySelector('b').textContent='다른 파일 분석하기';
-        drop.querySelector('span').textContent=f.name;
+        $('#dropHow').textContent=f.name;
         msg(`${ST.n.toLocaleString()}개 지점 분석 완료 (${Math.round(performance.now()-t0)}ms) · 기준 거리 ${ST.auto}km 자동 설정`);
       }catch(err){
         msg(err.message==='OLD'
