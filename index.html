@@ -31,7 +31,9 @@ p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
 #drop b{display:block;font-size:16px;margin-bottom:6px}
 #drop span{color:var(--ink2);font-size:13px;display:block;line-height:1.6}
 /* 기록 파일이 없는 사람이 첫 화면에서 막히지 않게, 샘플은 링크가 아니라 버튼으로 */
-#demo{margin-top:16px;font-size:14px;font-weight:600;padding:10px 20px;
+#demoRow{display:flex;gap:12px;align-items:center;justify-content:center;
+  margin-top:14px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
+#demo{font-size:14px;font-weight:600;padding:10px 20px;
   background:var(--blue);border-color:var(--blue);color:#fff}
 #demo:hover{background:var(--blue-d);border-color:var(--blue-d)}
 #legs{display:flex;gap:6px;align-items:center;margin-top:8px}
@@ -135,9 +137,12 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
     <span>또는 클릭해서 선택. 내보내는 곳이 기기마다 다릅니다.</span>
     <span><kbd>iPhone</kbd> Google 지도 앱 → 프로필 → ⋯ → 위치 및 개인정보 설정 → 타임라인 데이터 내보내기 → 파일에 저장 (location-history.json)</span>
     <span><kbd>Android</kbd> 휴대폰 설정 → 위치 → 타임라인 → 타임라인 데이터 내보내기 (Timeline.json)</span>
-    <button id="demo">샘플 데이터로 둘러보기</button>
   </div>
   <input type="file" id="file" accept=".json,application/json" class="hide">
+</div>
+<div id="demoRow">
+  <span>파일이 없어도 둘러볼 수 있습니다</span>
+  <button id="demo">샘플 데이터로 둘러보기</button>
 </div>
 <div id="status"></div>
 
@@ -750,7 +755,23 @@ function fitTrip(pts,W,H){
 }
 
 /* canvas map */
-const BOUNDS={world:[-180,-58,180,84]};
+/* 세계 지도는 태평양을 가운데 둔다 — 집이 한국이면 대서양 중심 지도에서는
+   여행이 좌우 양 끝으로 찢어진다. 30°W 서쪽 경도를 한 바퀴 돌려 오른쪽에 붙인다.
+   이음매는 대서양 한복판이라 육지를 가르지 않는다. */
+const WSEAM=-30;
+const BOUNDS={world:[WSEAM,-58,WSEAM+360,84]};
+/* 옮기는 단위는 링이다. 꼭짓점마다 따로 옮기면 이음매를 지나는 도형이 화면을
+   가로질러 늘어진다. 계산해 둔 값은 GEO 가 한 번만 로딩되므로 그대로 아껴 둔다. */
+function worldShift(f){
+  if(f.wsh) return f.wsh;
+  const sh=[];
+  for(const ring of f[1]){
+    let lo=1/0,hi=-1/0;
+    for(let i=0;i<ring.length;i+=2){if(ring[i]<lo)lo=ring[i]; if(ring[i]>hi)hi=ring[i];}
+    sh.push((lo+hi)/2<WSEAM?360:0);
+  }
+  return (f.wsh=sh);
+}
 /* 국내 지도는 거주국이 어디든 집과 그 나라 안 목적지에 맞춰 잡는다 */
 function localBounds(){
   const pts=[ST.H.at(ST.dayList[ST.dayList.length-1])];
@@ -794,8 +815,9 @@ function draw(){
     // uniform scale so the map keeps its shape, then centre it in the canvas
     const kx=Math.cos((b+t)/2*D), dw=(r-l)*kx, dh=t-b;
     const sc=Math.min(W/dw,Hpx/dh), ox=(W-dw*sc)/2, oy=(Hpx-dh*sc)/2;
-    X=(la,lo)=>ox+(lo-l)*kx*sc; Y=(la,lo)=>oy+(t-la)*sc;
-    const grp=MODE==='world'?GEO.world:(REG.get(HOME_CC)||[]);
+    const wrap=MODE==='world';
+    X=(la,lo)=>ox+((wrap&&lo<WSEAM?lo+360:lo)-l)*kx*sc; Y=(la,lo)=>oy+(t-la)*sc;
+    const grp=wrap?GEO.world:(REG.get(HOME_CC)||[]);
     g.lineWidth=.6; g.strokeStyle='#fff';
     const visited=new Set();
     for(const tp of ST.trips) for(const c of tp.top){
@@ -803,9 +825,13 @@ function draw(){
     }
     for(const f of grp){
       g.fillStyle=visited.has(f)?'#bfdbfe':'#eceff3';
-      for(const ring of f[1]){
-        g.beginPath(); g.moveTo(X(ring[1],ring[0]),Y(ring[1],ring[0]));
-        for(let i=2;i<ring.length;i+=2) g.lineTo(X(ring[i+1],ring[i]),Y(ring[i+1],ring[i]));
+      const sh=wrap?worldShift(f):null;
+      for(let k=0;k<f[1].length;k++){
+        const ring=f[1][k], w=sh?sh[k]:0;
+        // 링 단위로 이미 옮겼으니 X 의 자동 되돌림이 끼어들지 않게 값을 직접 넣는다
+        const px=i=>ox+(ring[i]+w-l)*kx*sc, py=i=>oy+(t-ring[i+1])*sc;
+        g.beginPath(); g.moveTo(px(0),py(0));
+        for(let i=2;i<ring.length;i+=2) g.lineTo(px(i),py(i));
         g.closePath(); g.fill(); g.stroke();
       }
     }
@@ -935,6 +961,9 @@ function drawDetail(){
   const DD=place?[]:tripDays(t);
   // 멀리 떨어진 좌표가 섞인 장소가 있어, 화면은 대표 좌표 둘레로 맞춘다.
   // 그러지 않으면 지도가 두 지점 사이 수십 km 를 담느라 아무것도 안 보인다.
+  // 갈 때·올 때 버튼은 그 경로를 그리는 화면에만 둔다. 여는 함수마다 따로
+  // 챙기면 한쪽을 빠뜨렸을 때 여행 상세에까지 남는다.
+  $('#legs').classList.toggle('hide',!place);
   const near=place?t.vs.map(v=>v.pos).filter(p=>hav(t.pos,p)<2):null;
   const all=place?(near.length?near:[t.pos]):[].concat(...DD.map(r=>r.pts));
   // 날짜를 고르면 그 날에 맞춰 다시 확대한다. 전체 보기로는 도시 안 이동이 안 보인다.
@@ -1160,7 +1189,6 @@ function openTrip(t){
      <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>
      ${sv?`<div class="s">머문 곳 ${sv}</div>`:''}`;
   setHint();
-  $('#legs').classList.add('hide');       // 여행 상세는 날짜별 농담이라 나눌 것이 없다
   $('#modal').classList.add('open');
   buildDays(t);
   // 모달이 보이고 SEL 이 리셋된 뒤여야 clientWidth 와 fitPts 가 이 여행 기준으로
@@ -1184,7 +1212,6 @@ function openPlace(f){
      <div class="s">${dstr(f.first)} ~ ${dstr(f.last)} · 한 번에 평균 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·
        ${f.pos[0].toFixed(5)}, ${f.pos[1].toFixed(5)}</div>`;
   $('#days').innerHTML='';               // 날짜가 수백 개라 칩으로 세우지 않는다
-  $('#legs').classList.remove('hide');
   setHint();
   $('#modal').classList.add('open');
   drawDetail();
@@ -1200,8 +1227,7 @@ drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');
   if(e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);};
 $('#file').onchange=e=>{if(e.target.files[0]) load(e.target.files[0]);};
 /* 기록이 없어도 둘러볼 수 있게 지어낸 2년치를 얹는다. 실존 인물의 기록이 아니다. */
-$('#demo').onclick=e=>{
-  e.preventDefault(); e.stopPropagation();          // #drop 의 파일 선택까지 열리지 않게
+$('#demo').onclick=()=>{
   msg('샘플 데이터 받는 중…');
   fetch('sample.json').then(r=>r.ok?r.blob():Promise.reject(new Error('샘플을 받지 못했습니다.')))
     .then(bl=>{const f=new File([bl],'sample.json',{type:'application/json'}); load(f);})
