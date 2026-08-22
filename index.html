@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>여행 타임라인 — Google Timeline 여행 추출기</title>
+<link rel="alternate" hreflang="ko" href="https://taekie.github.io/timeline-trips/">
+<link rel="alternate" hreflang="en" href="https://taekie.github.io/timeline-trips/en/">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%233b82f6'/><path d='M8 24c5 0 4-7 8-8s3-8 8-8' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-dasharray='3.4 3.4'/><circle cx='8' cy='24' r='3.4' fill='%23fff'/><circle cx='24' cy='8' r='3.4' fill='%23fff'/></svg>">
 <style>
 :root{
@@ -19,6 +21,11 @@ body{margin:0;background:var(--bg2);color:var(--ink);
 :lang(ko),.ko{font-family:'KoddiUD OnGothic',-apple-system,BlinkMacSystemFont,sans-serif}
 .wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
 h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+#top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+#lang{font-size:13px;color:var(--ink3);white-space:nowrap}
+#lang b{color:var(--ink)}
+#lang a{color:var(--blue-d);text-decoration:none}
+#lang a:hover{text-decoration:underline}
 h2{font-size:17px;margin:36px 0 12px;letter-spacing:-.01em}
 p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
 .badge{display:inline-block;background:var(--blue-l);color:var(--blue-d);
@@ -133,7 +140,10 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 </head>
 <body>
 <div class="wrap">
-<h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
+<div id="top">
+  <h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
+  <div id="lang"><b>한국어</b> · <a href="en/">English</a></div>
+</div>
 <p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
 모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다.</p>
 

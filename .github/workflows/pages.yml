@@ -25,6 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 영문판을 먼저 찍어 둔다. 못 찾은 열쇠나 남은 한글이 있으면 여기서 멈춘다.
+      - name: 영문판 찍기
+        run: |
+          mkdir -p en
+          python3 i18n/apply.py en > en/index.html
+
       - name: 분석 스니펫 심기
         if: vars.GA_ID != ''
         env:
@@ -38,16 +44,17 @@ jobs:
             f'<script async src="https://www.googletagmanager.com/gtag/js?id={gid}"></script>\n'
             '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}'
             f"gtag('js',new Date());gtag('config','{gid}');</script>\n")
-          p = pathlib.Path('index.html')
-          s = p.read_text(encoding='utf-8')
-          assert '</head>' in s, 'head 닫는 자리를 찾지 못했다'
-          p.write_text(s.replace('</head>', snippet + '</head>', 1), encoding='utf-8')
-          print('심음:', gid)
+          for name in ('index.html', 'en/index.html'):
+              p = pathlib.Path(name)
+              s = p.read_text(encoding='utf-8')
+              assert '</head>' in s, f'{name}: head 닫는 자리를 찾지 못했다'
+              p.write_text(s.replace('</head>', snippet + '</head>', 1), encoding='utf-8')
+              print('심음:', name, gid)
           PY
 
       # 사이트를 굴리는 데 필요 없는 것은 올리지 않는다
       - name: 개발용 파일 빼기
-        run: rm -rf docs test.js prep.py make_sample.py README.md .github
+        run: rm -rf docs test.js prep.py make_sample.py README.md .github i18n
 
       - uses: actions/configure-pages@v5
         with:

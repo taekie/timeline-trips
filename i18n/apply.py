@@ -30,7 +30,15 @@ def blank_comments(t):
     t = re.sub(r'<!--[\s\S]*?-->', lambda m: re.sub(r'[가-힣]', ' ', m.group()), t)
     return t
 
-left = [(i + 1, l.strip()) for i, l in enumerate(blank_comments(s).split('\n')) if re.search(r'[가-힣]', l)]
+# 옮긴 글 안에 일부러 남긴 한글(언어 이름 같은 것)은 잔여가 아니다
+keep = [d for _, d in pairs if re.search(r'[가-힣]', d)]
+def drop_intended(t):
+    for d in sorted(keep, key=len, reverse=True):
+        t = t.replace(d, ' ')
+    return t
+
+left = [(i + 1, l.strip()) for i, l in enumerate(drop_intended(blank_comments(s)).split('\n'))
+        if re.search(r'[가-힣]', l)]
 
 for k in missing:
     print('못 찾은 열쇠: ' + json.dumps(k, ensure_ascii=False)[:110], file=sys.stderr)
