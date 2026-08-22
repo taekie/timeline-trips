@@ -8,6 +8,7 @@
 <style>
 :root{
   --blue:#3b82f6; --blue-d:#2563eb; --blue-l:#dbeafe;
+  --go:#1d4ed8; --back:#ea580c;      /* 가는 길 / 오는 길 — 아래 GO, BACK 과 같은 값 */
   --ink:#111827; --ink2:#4b5563; --ink3:#9ca3af;
   --bg:#ffffff; --bg2:#f8f9fa; --line:#e5e7eb;
 }
@@ -33,6 +34,11 @@ p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
 #demo{margin-top:16px;font-size:14px;font-weight:600;padding:10px 20px;
   background:var(--blue);border-color:var(--blue);color:#fff}
 #demo:hover{background:var(--blue-d);border-color:var(--blue-d)}
+#legs{display:flex;gap:6px;align-items:center;margin-top:8px}
+#legs button{font-size:12.5px;padding:4px 10px}
+#legGo.on{background:var(--go);border-color:var(--go);color:#fff}
+#legBack.on{background:var(--back);border-color:var(--back);color:#fff}
+#legs .hint{margin:0}
 #drop span kbd{font:inherit;color:var(--ink);font-weight:600}
 #status{margin-top:14px;font-size:13px;color:var(--ink2);min-height:20px}
 #status.err{color:#dc2626}
@@ -121,7 +127,7 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 <div class="wrap">
 <h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
 <p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
-모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다. 여행 상세와 자주 간 곳 지도는 OpenStreetMap 타일을 배경으로 깔기 때문에, 그 두 지도를 여는 동안에는 보고 있는 지역의 타일 좌표가 타일 서버에 전달됩니다. 위치 기록 자체는 어디로도 나가지 않습니다.</p>
+모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다.</p>
 
 <div id="drop">
   <b>타임라인 JSON 파일을 여기에 끌어다 놓으세요</b>
@@ -192,7 +198,11 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
       <button id="modalClose">닫기</button>
     </div>
     <canvas id="mcv"></canvas>
-    <div class="hint" id="mapLegend"></div>
+    <div id="legs" class="hide">
+      <button id="legGo" class="on">갈 때</button>
+      <button id="legBack" class="on">올 때</button>
+      <span class="hint">도착 전과 출발 뒤의 그날 경로</span>
+    </div>
     <div class="hint" id="mapHint">휠로 확대 · 끌어서 이동 · 더블클릭으로 원래대로</div>
     <div id="attr">지도 데이터 ©
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 ©
@@ -702,7 +712,10 @@ function shortName(n){
    위 draw() 는 정거원통도법이라 타일과 정합이 맞지 않는다. 상세 지도는
    타일과 같은 EPSG:3857 로 따로 잡는다. */
 const TILE=256, ZMAX=16;
-const GO='#1d4ed8', BACK='#ea580c';   // 가는 길 / 오는 길
+const GO='#1d4ed8', BACK='#ea580c';   // 가는 길 / 오는 길 (:root 의 --go, --back 과 같은 값)
+/* 두 길을 겹쳐 보면 어느 쪽인지 헷갈릴 때가 있어 한쪽만 볼 수 있게 둔다.
+   혼자 그릴 때는 가릴 상대가 없으니 실선으로, 함께 그릴 때만 점선으로 엇갈린다. */
+let LEGS={go:true,back:true};
 function merc(la,lo,z){
   const n=TILE*Math.pow(2,z), s=Math.sin(la*D);
   return [n*(lo+180)/360, n*(.5-Math.log((1+s)/(1-s))/(4*Math.PI))];
@@ -947,33 +960,33 @@ function drawDetail(){
       if(!r) byDay.set(v.d,{st:v.st,en:v.en});
       else {r.st=Math.min(r.st,v.st); r.en=Math.max(r.en,v.en);}
     }
-    const leg=(d,t0,t1)=>{
+    // 하루치를 통째로 그으면 그날의 딴 볼일까지 얹혀 사방으로 뻗는다. 도착
+    // 시각에서 시간을 거슬러(떠난 시각에서는 앞으로) 따라가다, 점 사이가 30분
+    // 넘게 비면 거기서 끊는다 — 그만큼 멈춰 있었으면 다른 데 머문 것이다.
+    // 30분은 방문과 경유를 가르는 선(FMIN)과 같다.
+    const GAP=FMIN*6e4;
+    const trace=(d,t0,dir)=>{
       const ps=ST.days.get(d), ts=ST.dayT&&ST.dayT.get(d);
       if(!ps||!ts||ps.length<2) return;
-      let on=false;
-      for(let k=0;k<ps.length;k++){
-        // 창이 배열 끝이 아니라 중간에서 닫히면 여기서 그어 두어야 한다.
-        // 안 그러면 앞부분만 해당하는 "갈 때"는 한 번도 그려지지 않는다.
-        if(ts[k]<t0||ts[k]>t1){if(on) g.stroke(); on=false; continue;}
-        const x=X(ps[k][0],ps[k][1]), y=Y(ps[k][0],ps[k][1]);
-        if(on) g.lineTo(x,y); else {g.beginPath(); g.moveTo(x,y); on=true;}
+      let i=-1;                                  // 기준 시각에 맞닿은 자리
+      if(dir<0){ for(let k=0;k<ts.length;k++) if(ts[k]<=t0) i=k; }
+      else     { for(let k=ts.length-1;k>=0;k--) if(ts[k]>=t0) i=k; }
+      if(i<0||i+dir<0||i+dir>=ts.length) return;
+      let n=0;
+      g.beginPath(); g.moveTo(X(ps[i][0],ps[i][1]),Y(ps[i][0],ps[i][1]));
+      for(let k=i+dir;k>=0&&k<ts.length;k+=dir){
+        if(Math.abs(ts[k]-ts[k-dir])>GAP) break;
+        g.lineTo(X(ps[k][0],ps[k][1]),Y(ps[k][0],ps[k][1])); n++;
       }
-      if(on) g.stroke();
+      if(n) g.stroke();
     };
-    // 오가는 길이 겹치는 구간에서는 나중에 그린 오는 길이 위로 온다.
-    // 길이 갈라지는 데서는 두 색이 그대로 남아 어느 쪽으로 오가는지 읽힌다.
     // 한 획의 진하기를 날 수로 나눈다. 고정값을 쓰면 300번 간 곳은 죄다 겹쳐
     // 덩어리가 되고 스무 번 간 곳은 거의 안 보인다. 늘 다니는 길이 진해지는 건
-    // 겹쳐 그린 결과여야지 획 자체가 진해서는 아니다. 하한이 있어야 백 번 넘게
-    // 간 곳도 형체가 남는다.
-    // 점선은 길이의 절반만 칠하므로 실선일 때보다 한 획을 조금 더 진하게 잡는다
-    g.globalAlpha=Math.min(.6,Math.max(.055,4/byDay.size)); g.lineWidth=1.6;
-    g.setLineDash([5,5]);
-    g.strokeStyle=GO;   g.lineDashOffset=0;
-    for(const[d,r]of byDay) leg(d,-Infinity,r.st);
-    g.strokeStyle=BACK; g.lineDashOffset=5;
-    for(const[d,r]of byDay) leg(d,r.en,Infinity);
-    g.setLineDash([]); g.lineDashOffset=0; g.globalAlpha=1;
+    // 겹쳐 그린 결과여야지 획 자체가 진해서는 아니다.
+    g.globalAlpha=Math.min(.6,Math.max(.06,4/byDay.size)); g.lineWidth=1.4;
+    if(LEGS.go){   g.strokeStyle=GO;   for(const[d,r]of byDay) trace(d,r.st,-1); }
+    if(LEGS.back){ g.strokeStyle=BACK; for(const[d,r]of byDay) trace(d,r.en,+1); }
+    g.globalAlpha=1;
   }
 
   // 날짜별 경로 — 첫날이 가장 옅고 마지막 날이 가장 진하다
@@ -1147,7 +1160,7 @@ function openTrip(t){
      <div class="p">${t.places.map(p=>p.name).join(' · ')||'—'}${t.abroad?'<span class="abroad">해외</span>':''}</div>
      ${sv?`<div class="s">머문 곳 ${sv}</div>`:''}`;
   setHint();
-  $('#mapLegend').textContent='';
+  $('#legs').classList.add('hide');       // 여행 상세는 날짜별 농담이라 나눌 것이 없다
   $('#modal').classList.add('open');
   buildDays(t);
   // 모달이 보이고 SEL 이 리셋된 뒤여야 clientWidth 와 fitPts 가 이 여행 기준으로
@@ -1171,9 +1184,7 @@ function openPlace(f){
      <div class="s">${dstr(f.first)} ~ ${dstr(f.last)} · 한 번에 평균 ${durStr(f.mins/f.visits)} · 합계 ${durStr(f.mins)} ·
        ${f.pos[0].toFixed(5)}, ${f.pos[1].toFixed(5)}</div>`;
   $('#days').innerHTML='';               // 날짜가 수백 개라 칩으로 세우지 않는다
-  $('#mapLegend').innerHTML=
-    `<b style="color:${GO}">━</b> 갈 때 &nbsp; <b style="color:${BACK}">━</b> 올 때
-     &nbsp;— 도착 전과 출발 뒤의 그날 경로입니다`;
+  $('#legs').classList.remove('hide');
   setHint();
   $('#modal').classList.add('open');
   drawDetail();
@@ -1297,6 +1308,8 @@ $('#cv').onclick=e=>{
   const b=e.currentTarget.getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
   for(const m of MK) if((m.x-x)**2+(m.y-y)**2<200){m.f?openPlace(m.f):openTrip(m.t);return;}
 };
+$('#legGo').onclick=()=>{LEGS.go=!LEGS.go; $('#legGo').classList.toggle('on',LEGS.go); drawDetail();};
+$('#legBack').onclick=()=>{LEGS.back=!LEGS.back; $('#legBack').classList.toggle('on',LEGS.back); drawDetail();};
 $('#modalClose').onclick=closeTrip;
 $('#modal').onclick=e=>{if(e.target===$('#modal')) closeTrip();};
 addEventListener('keydown',e=>{if(e.key==='Escape'&&CUR) closeTrip();});

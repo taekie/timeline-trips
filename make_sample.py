@@ -54,13 +54,14 @@ def hav(a, b):
     return 2*R*math.asin(min(1, math.sqrt(h)))
 
 def move(start, minutes, a, b, via=None, n=5, jitter=0.0007, tz=KST):
-    """이동 구간. 같은 시간대를 activity 와 timelinePath 로 한 번씩 적는다 —
-       실제 내보내기도 그렇게 겹쳐 적는다."""
+    """이동 구간. 긴 이동은 activity 와 timelinePath 로 한 번씩 겹쳐 적는다 —
+       실제 내보내기도 그렇게 적는다. 몇 분짜리 도보는 자취만 남긴다."""
     end = start + timedelta(minutes=minutes)
-    OUT.append({'startTime': iso(start.astimezone(tz)), 'endTime': iso(end.astimezone(tz)),
-                'activity': {'start': geo(a), 'end': geo(b),
-                             'distanceMeters': '%.1f' % (hav(a, b)*1000),
-                             'topCandidate': {'type': 'in passenger vehicle', 'probability': '0.85'}}})
+    if minutes >= 15:
+        OUT.append({'startTime': iso(start.astimezone(tz)), 'endTime': iso(end.astimezone(tz)),
+                    'activity': {'start': geo(a), 'end': geo(b),
+                                 'distanceMeters': '%.1f' % (hav(a, b)*1000),
+                                 'topCandidate': {'type': 'in passenger vehicle', 'probability': '0.85'}}})
     knots = [a] + ([via] if via else []) + [b]
     pts = []
     for i in range(n+1):
@@ -112,15 +113,24 @@ while day <= DAY1:
     visit(at(day,22,30), 540, HOME)                       # 집에서 자는 밤 (새벽 3시를 넘긴다)
     wd = day.weekday()
     if wd < 5:                                            # 평일
-        if random.random() < .55: visit(at(day,7,40), 35, CAFE)          # 방문
+        if random.random() < .55:                                        # 방문
+            move(at(day,7,33), 6, HOME, CAFE, n=3, jitter=0.0003)
+            visit(at(day,7,40), 35, CAFE)
+            move(at(day,8,16), 5, CAFE, HOME, n=3, jitter=0.0003)
         move(at(day,8,20), 45, HOME, WORK, via=VIA_M)
         visit(at(day,9,10), 545, WORK)
         move(at(day,18,20), 50, WORK, HOME, via=VIA_E)
         if random.random() < .45: visit(at(day,8,58), 5, STOP)           # 경유
         if random.random() < .6:  visit(at(day,19,25), 7, STORE)         # 경유
-        if random.random() < .35: visit(at(day,20,0), 70, GYM)           # 방문
+        if random.random() < .35:                                        # 방문
+            move(at(day,19,52), 7, HOME, GYM, n=3, jitter=0.0004)
+            visit(at(day,20,0), 70, GYM)
+            move(at(day,21,11), 8, GYM, HOME, n=3, jitter=0.0004)
     else:                                                 # 주말
-        if random.random() < .4:  visit(at(day,14,0), 45, MART)
+        if random.random() < .4:                                         # 방문
+            move(at(day,13,48), 11, HOME, MART, n=4, jitter=0.0006)
+            visit(at(day,14,0), 45, MART)
+            move(at(day,14,46), 12, MART, HOME, n=4, jitter=0.0006)
         if random.random() < .5:  visit(at(day,19,10), 6, STORE)
         if wd == 5 and day.day <= 7:                                     # 매달 첫 토요일
             move(at(day,11,0), 55, HOME, FOLKS, n=9, jitter=0.002)
