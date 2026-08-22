@@ -4,8 +4,9 @@
    exists, the end-to-end checks run too; otherwise they are skipped. */
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 
+// head 의 분석 스니펫과 섞이지 않게 앱 스크립트는 id 로 집는다
 const code = fs.readFileSync(__dirname + '/index.html', 'utf8')
-  .match(/<script>([\s\S]*?)<\/script>/)[1];
+  .match(/<script id="app">([\s\S]*?)<\/script>/)[1];
 
 const el = new Proxy({}, {
   get: (t, k) => k === 'classList' ? {add(){}, remove(){}}

@@ -1,0 +1,59 @@
+# GitHub Pages 배포. main 을 그대로 올리되, 분석 스니펫만 배포 직전에 끼워 넣는다.
+# 스니펫을 소스에 두면 이 레포를 포크해 올린 사이트의 트래픽까지 한 속성으로 들어온다.
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 분석 스니펫 심기
+        if: vars.GA_ID != ''
+        env:
+          GA_ID: ${{ vars.GA_ID }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib
+          gid = os.environ['GA_ID']
+          snippet = (
+            '<!-- GA (배포할 때만 붙는다 — 레포 변수 GA_ID) -->\n'
+            f'<script async src="https://www.googletagmanager.com/gtag/js?id={gid}"></script>\n'
+            '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}'
+            f"gtag('js',new Date());gtag('config','{gid}');</script>\n")
+          p = pathlib.Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          assert '</head>' in s, 'head 닫는 자리를 찾지 못했다'
+          p.write_text(s.replace('</head>', snippet + '</head>', 1), encoding='utf-8')
+          print('심음:', gid)
+          PY
+
+      # 사이트를 굴리는 데 필요 없는 것은 올리지 않는다
+      - name: 개발용 파일 빼기
+        run: rm -rf docs test.js prep.py make_sample.py README.md .github
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
