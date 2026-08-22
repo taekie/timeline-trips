@@ -22,10 +22,13 @@ body{margin:0;background:var(--bg2);color:var(--ink);
 .wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
 h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
 #top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
-#lang{font-size:13px;color:var(--ink3);white-space:nowrap}
+#meta{display:flex;align-items:center;gap:14px;font-size:13px;white-space:nowrap}
+#lang{color:var(--ink3)}
 #lang b{color:var(--ink)}
-#lang a{color:var(--blue-d);text-decoration:none}
-#lang a:hover{text-decoration:underline}
+#meta a{color:var(--blue-d);text-decoration:none}
+#meta a:hover{text-decoration:underline}
+#ghTop{display:inline-flex;align-items:center;gap:5px;color:var(--ink2);font-weight:600}
+#ghTop:hover{color:var(--blue-d)}
 h2{font-size:17px;margin:36px 0 12px;letter-spacing:-.01em}
 p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
 .badge{display:inline-block;background:var(--blue-l);color:var(--blue-d);
@@ -38,6 +41,9 @@ p.sub{color:var(--ink2);margin:0 0 20px;font-size:14px}
 #drop b{display:block;font-size:16px;margin-bottom:6px}
 #drop span{color:var(--ink2);font-size:13px;display:block;line-height:1.6}
 /* 기록 파일이 없는 사람이 첫 화면에서 막히지 않게, 샘플은 링크가 아니라 버튼으로 */
+#intro{margin-top:30px}
+#intro p{color:var(--ink2);font-size:14px;margin:0 0 12px;text-align:center}
+#intro img{width:100%;display:block;border:1px solid var(--line);border-radius:10px}
 #demoRow{display:flex;gap:12px;align-items:center;justify-content:center;
   margin-top:14px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
 #demo{font-size:14px;font-weight:600;padding:10px 20px;
@@ -142,7 +148,10 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
 <div class="wrap">
 <div id="top">
   <h1>여행 타임라인<span class="badge">파일이 업로드되지 않습니다</span></h1>
-  <div id="lang"><b>한국어</b> · <a href="en/">English</a></div>
+  <div id="meta">
+    <span id="lang"><b>한국어</b> · <a href="en/">English</a></span>
+    <a id="ghTop" href="https://github.com/taekie/timeline-trips" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>GitHub</a>
+  </div>
 </div>
 <p class="sub">Google Timeline 기록에서 집을 찾아내고, 집에서 멀리 떠났던 일정을 여행으로 묶어 보여줍니다.
 모든 계산은 이 브라우저 안에서만 일어나며, 위치 기록 파일은 서버로 전송되지 않습니다.</p>
@@ -161,6 +170,11 @@ code{background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:12.5px}
   <button id="demo">샘플 데이터로 둘러보기</button>
 </div>
 <div id="status"></div>
+
+<div id="intro">
+  <p>기록을 넣으면 이런 화면이 나옵니다 — 집을 기준으로 묶인 여행 목록과 지도, 되풀이해 들른 곳까지.</p>
+  <img src="preview.png" alt="세계 지도 위의 여행과 여행 목록 표" loading="lazy">
+</div>
 
 <div id="out" class="hide">
   <div class="stats" id="stats"></div>
@@ -1273,6 +1287,7 @@ function load(f){
         ST=analyse(JSON.parse(rd.result));
         $('#th').value=ST.auto;
         $('#out').classList.remove('hide');
+        $('#intro').classList.add('hide');        // 진짜 결과가 나오면 미리 보기는 물러난다
         await render();
         drop.style.padding='18px 20px';
         drop.querySelector('b').textContent='다른 파일 분석하기';

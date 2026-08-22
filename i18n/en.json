@@ -396,7 +396,15 @@
   "if(p.length>1&&/-gu$/.test(p[p.length-1])) p.pop();"
  ],
  [
-  "<div id=\"lang\"><b>한국어</b> · <a href=\"en/\">English</a></div>",
-  "<div id=\"lang\"><a href=\"../\">한국어</a> · <b>English</b></div>"
+  "<span id=\"lang\"><b>한국어</b> · <a href=\"en/\">English</a></span>",
+  "<span id=\"lang\"><a href=\"../\">한국어</a> · <b>English</b></span>"
+ ],
+ [
+  "<p>기록을 넣으면 이런 화면이 나옵니다 — 집을 기준으로 묶인 여행 목록과 지도, 되풀이해 들른 곳까지.</p>",
+  "<p>Drop your records in and you get this — trips grouped around your home, on a map, plus the places you keep going back to.</p>"
+ ],
+ [
+  "<img src=\"preview.png\" alt=\"세계 지도 위의 여행과 여행 목록 표\" loading=\"lazy\">",
+  "<img src=\"../preview-en.png\" alt=\"Trips on a world map with the trip list below\" loading=\"lazy\">"
  ]
 ]
