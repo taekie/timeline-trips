@@ -54,7 +54,7 @@ jobs:
 
       # 사이트를 굴리는 데 필요 없는 것은 올리지 않는다
       - name: 개발용 파일 빼기
-        run: rm -rf docs test.js prep.py make_sample.py README.md .github i18n
+        run: rm -rf test.js prep.py make_sample.py README.md .github i18n
 
       - uses: actions/configure-pages@v5
         with:
