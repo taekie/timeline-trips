@@ -2,8 +2,11 @@
 
 Sources are downloaded on first run and are not meant to be committed:
   southkorea-maps (KOSTAT 2018)   시/도 + 시·군·구 boundaries
-  natural-earth-vector 110m/50m   country outlines + Korean country names
+  natural-earth-vector 110m/50m   country outlines + Korean/English country names
   geonames cities15000            world city index
+
+지명은 한글·영문 두 벌로 내보낸다 — 지역/국가는 [한글, 영문, 링(, cc)],
+도시는 [도시명, 국가한글, 국가영문, 위도, 경도, 순위].
 
 Run: python3 prep.py   ->   geo.json   (bump ?v= in index.html afterwards)
 """
@@ -65,37 +68,58 @@ def rings(geom, tol, prec):
     return out
 
 # --- Korea: 250 municipalities, province name joined via the code prefix ----
-prov = {f['properties']['code']: f['properties']['name']
-        for f in json.load(open('skorea-provinces-2018-geo.json'))['features']}
+# 원본은 시/구가 붙은 곳의 영문을 "Suwonsijangangu" 처럼 통짜로 적는다. 시 이름만
+# 알면 앞을 떼고 뒤의 -gu 를 잘라 나머지를 얻을 수 있어, 표는 시 열한 곳이면 된다.
+CITY_EN = {'수원시':'Suwon','성남시':'Seongnam','안양시':'Anyang','안산시':'Ansan',
+           '고양시':'Goyang','용인시':'Yongin','청주시':'Cheongju','천안시':'Cheonan',
+           '전주시':'Jeonju','포항시':'Pohang','창원시':'Changwon'}
+
+def split_two(name, eng):
+    """'수원시장안구' → ('수원시 장안구', 'Suwon-si Jangan-gu')"""
+    m = re.fullmatch(r'(.+시)(.+[구군])', name)
+    if not m: return name, eng
+    city_ko, sub_ko = m.group(1), m.group(2)
+    city_en = CITY_EN.get(city_ko)
+    if not city_en: return f'{city_ko} {sub_ko}', eng      # 표에 없으면 원본 그대로
+    low, pre = eng.lower(), (city_en + 'si').lower()
+    sub = eng[len(pre):] if low.startswith(pre) else eng   # 포항·창원은 구 이름만 적혀 있다
+    sub = re.sub(r'-?gu[n]?$', '', sub, flags=re.I) or sub
+    sfx = '-gun' if sub_ko.endswith('군') else '-gu'
+    return f'{city_ko} {sub_ko}', f'{city_en}-si {sub[:1].upper() + sub[1:]}{sfx}'
+
+pv = json.load(open('skorea-provinces-2018-geo.json'))['features']
+prov    = {f['properties']['code']: f['properties']['name']     for f in pv}
+prov_en = {f['properties']['code']: f['properties']['name_eng'] for f in pv}
 kr = []
 for f in json.load(open('skorea-municipalities-2018-geo.json'))['features']:
     p = f['properties']
     rs = rings(f['geometry'], 0.004, 4)
-    # the source writes "전주시완산구" — split the two levels apart
-    name = re.sub(r'^(.+시)(.+[구군])$', r'\1 \2', p['name'])
-    if rs: kr.append([(prov.get(p['code'][:2], '') + ' ' + name).strip(), rs])
+    name, name_en = split_two(p['name'], p['name_eng'])
+    if rs: kr.append([(prov.get(p['code'][:2], '') + ' ' + name).strip(),
+                      (prov_en.get(p['code'][:2], '') + ' ' + name_en).strip(), rs])
 
 # --- World: country outlines, Korean names where Natural Earth has them -----
-ko = {}
+ko, en = {}, {}
 world = []
 for f in json.load(open('world.json'))['features']:
     p = f['properties']
-    nm = p.get('NAME_KO') or p['NAME']
+    nm, nm_en = (p.get('NAME_KO') or p['NAME']), p['NAME']
     cc = next((p[k] for k in ('ISO_A2_EH','ISO_A2') if p.get(k) and p[k] != '-99'), '')
-    if cc: ko.setdefault(cc, nm)
+    if cc: ko.setdefault(cc, nm); en.setdefault(cc, nm_en)
     rs = rings(f['geometry'], 0.05, 2)
-    if rs: world.append([nm, rs, cc])
+    if rs: world.append([nm, nm_en, rs, cc])
 
 # 110m has no Guam/Macau/…; borrow Korean names from the 50m table (names only,
 # geometry stays 110m) and fall back to GeoNames English for anything still missing
 for f in json.load(open('world50.json'))['features']:
     p = f['properties']
     for k in ('ISO_A2_EH','ISO_A2'):
-        if p.get(k) and p[k] != '-99': ko.setdefault(p[k], p.get('NAME_KO') or p['NAME'])
+        if p.get(k) and p[k] != '-99':
+            ko.setdefault(p[k], p.get('NAME_KO') or p['NAME']); en.setdefault(p[k], p['NAME'])
 for line in open('countryInfo.txt', encoding='utf-8'):
     if line.startswith('#'): continue
     c = line.split('\t')
-    if len(c) > 4: ko.setdefault(c[0], c[4])
+    if len(c) > 4: ko.setdefault(c[0], c[4]); en.setdefault(c[0], c[4])
 
 # --- World cities: pop >= 50k, plus the largest place in every country ------
 # PPLX is a *section* of a city ("Chinatown"); it outranks the city itself on
@@ -111,7 +135,8 @@ sel = {(r[0], r[1]): r for r in rows if r[4] >= 50000}
 sel.update({(r[0], r[1]): r for r in biggest.values()})
 # rank = log10(population)*10, so the app can prefer Tokyo over its Chuo ward
 import math
-cities = [[r[0], ko.get(r[1], r[1]), r[2], r[3], round(math.log10(max(r[4],1000))*10)]
+cities = [[r[0], ko.get(r[1], r[1]), en.get(r[1], r[1]), r[2], r[3],
+           round(math.log10(max(r[4],1000))*10)]
           for r in sorted(sel.values(), key=lambda x: -x[4])]
 
 # --- Region files: one per country, fetched only when a trip lands there ----
@@ -127,7 +152,8 @@ for f in json.load(open('admin1.geojson'))['features']:
     cc = p.get('iso_a2')
     if not re.fullmatch(r'[A-Z]{2}', cc or '') or cc == 'KR': continue
     rs = rings(f['geometry'], 0.02, 3)
-    if rs: regions.setdefault(cc, []).append([p.get('name_ko') or p.get('name') or '', rs])
+    if rs: regions.setdefault(cc, []).append(
+        [p.get('name_ko') or p.get('name') or '', p.get('name') or '', rs])
 
 manifest = {}
 for cc, feats in sorted(regions.items()):

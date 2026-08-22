@@ -234,13 +234,19 @@ const REG=new Map();        // cc -> 지역 경계 (방문한 나라만 지연 �
 let HOME_CC='';             // 거주국은 지명에서 국가명을 뗀다
 
 /* 모든 feature는 [표시명, rings, ...] 꼴이고 bbox는 index 3에 붙인다 */
+/* 지명은 한글·영문 두 벌로 들어 있다 — [한글, 영문, 링(, 국가코드)].
+   테두리 상자는 받아온 뒤에 계산해 넣는데, 번호 자리를 또 쓰면 언젠가 부딪히므로
+   이름 있는 칸에 둔다. */
+const RINGS=2;
+let LANG='ko';
+const nameOf=f=>(LANG==='en'&&f[1])||f[0];
 function addBBox(feats){
-  for(const f of feats) f[3]=f[1].map(r=>{let a=1/0,b=1/0,c=-1/0,d=-1/0;
+  for(const f of feats) f.bb=f[RINGS].map(r=>{let a=1/0,b=1/0,c=-1/0,d=-1/0;
     for(let i=0;i<r.length;i+=2){if(r[i]<a)a=r[i];if(r[i]>c)c=r[i];if(r[i+1]<b)b=r[i+1];if(r[i+1]>d)d=r[i+1];}
     return [a,b,c,d];});
   return feats;
 }
-fetch('geo.json?v=3').then(r=>r.json()).then(g=>{GEO=g; addBBox(g.world);})
+fetch('geo.json?v=4').then(r=>r.json()).then(g=>{GEO=g; addBBox(g.world);})
   .catch(()=>msg('경계 데이터(geo.json)를 불러오지 못했습니다.',1));
 
 /* 좌표가 떨어진 나라의 지역 파일만 받아온다. 한 번 받으면 캐시된다. */
@@ -250,7 +256,7 @@ async function ensureRegions(ccs){
   const kb=Math.round(want.reduce((a,c)=>a+GEO.regions[c],0)/1024);
   msg(`${want.join(', ')} 지역 경계 ${kb}KB 받는 중…`);
   await Promise.all(want.map(cc=>
-    fetch(`regions/${cc}.json?v=3`).then(r=>r.json())
+    fetch(`regions/${cc}.json?v=4`).then(r=>r.json())
       .then(f=>REG.set(cc,addBBox(f)))
       .catch(()=>REG.set(cc,[]))));       // 없으면 도시 인덱스로 대체된다
 }
@@ -270,9 +276,9 @@ function inRing(x,y,r){let c=false;
     if((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) c=!c;
   } return c;}
 function hitPoly(grp,lat,lon){
-  for(const f of grp) for(let k=0;k<f[1].length;k++){
-    const b=f[3][k];
-    if(lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3]&&inRing(lon,lat,f[1][k])) return f;
+  for(const f of grp) for(let k=0;k<f[RINGS].length;k++){
+    const b=f.bb[k];
+    if(lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3]&&inRing(lon,lat,f[RINGS][k])) return f;
   } return null;}
 /* 바다·국경 밖으로 떨어진 점을 가장 가까운 지역에 붙인다. cc를 주면 그 나라만,
    생략하면 받아둔 모든 나라를 훑는다. */
@@ -280,7 +286,7 @@ function nearestRegion(lat,lon,cc){
   let best=[1/0,null,''], cs=Math.cos(lat*D);
   for(const [k,feats] of REG){
     if(cc&&k!==cc) continue;
-    for(const f of feats) for(const r of f[1]) for(let i=0;i<r.length;i+=2){
+    for(const f of feats) for(const r of f[RINGS]) for(let i=0;i<r.length;i+=2){
       const dx=(r[i]-lon)*cs, dy=r[i+1]-lat, d=dx*dx+dy*dy;
       if(d<best[0]) best=[d,f,k];
     }
@@ -291,9 +297,9 @@ function nearestRegion(lat,lon,cc){
 function nearestCity(lat,lon){
   let best=[1/0,null,0], cs=Math.cos(lat*D);
   for(const c of GEO.cities){
-    const dx=(c[3]-lon)*cs, dy=c[2]-lat;
+    const dx=(c[4]-lon)*cs, dy=c[3]-lat;
     const km=Math.sqrt(dx*dx+dy*dy)*111;
-    const score=km+Math.max(0,60-c[4])*1.2;
+    const score=km+Math.max(0,60-c[5])*1.2;
     if(score<best[0]) best=[score,c,km];
   }
   return [best[1], best[2]];}
@@ -308,7 +314,7 @@ function ccOf(lat,lon){
   // 훨씬 믿을 만하다 — 서해 한복판을 최근접 도시로 찍으면 북한이 나온다.
   const [,dr,rc]=nearestRegion(lat,lon);
   if(rc&&dr<30) return rc;
-  if(!KO2CC) KO2CC=new Map(GEO.world.map(x=>[x[0],x[2]]));
+  if(!KO2CC) KO2CC=new Map(GEO.world.map(x=>[x[0],x[3]]));
   const [c,d]=nearestCity(lat,lon);
   return c&&d<120?(KO2CC.get(c[1])||''):'';
 }
@@ -316,30 +322,31 @@ function ccOf(lat,lon){
 function ccStrict(lat,lon){
   for(const [cc,feats] of REG) if(hitPoly(feats,lat,lon)) return cc;
   const w=hitPoly(GEO.world,lat,lon);
-  return w?w[2]:'';
+  return w?w[3]:'';
 }
 // cc가 빈 문자열이면 ISO 코드 없는 국가(북키프로스 등)에 잘못 매칭된다
-const ccName=cc=>cc?((GEO.world.find(w=>w[2]===cc)||[])[0]||''):'';
+const ccName=cc=>{const w=cc&&GEO.world.find(w=>w[3]===cc); return w?nameOf(w):'';};
 
 /* 좌표 -> 지명. 거주국은 지역 경계로, 해외는 가까운 도시로 부르는 게 자연스럽다. */
 function placeName(lat,lon){
   const cc=ccOf(lat,lon);
   const [c,dc]=nearestCity(lat,lon);
   // 괌·마카오처럼 110m 외곽선에 없는 속령은 도시 인덱스가 국가명을 들고 있다
-  const country=ccName(cc)||(c&&dc<120?c[1]:'');
+  const cCountry=x=>(LANG==='en'&&x[2])||x[1];
+  const country=ccName(cc)||(c&&dc<120?cCountry(c):'');
   const abroad=cc?cc!==HOME_CC:!!country;
   const feats=REG.get(cc);
   let reg=feats?hitPoly(feats,lat,lon):null, sea=false;
   if(!reg&&feats){const [f,d]=nearestRegion(lat,lon,cc); if(f&&d<40){reg=f; sea=d>3;}}
   if(!abroad){
-    if(reg) return {name:reg[0]+(sea?' 앞바다':''), abroad:false, cc};   // "경상남도 통영시"
+    if(reg) return {name:nameOf(reg)+(sea?' 앞바다':''), abroad:false, cc};   // "경상남도 통영시"
     if(c&&dc<40) return {name:c[0], abroad:false, cc};
   }else{
     if(c&&dc<40) return {name:c[0]+', '+country, abroad:true, cc};       // "Tokyo, 일본"
-    if(reg) return {name:reg[0]+', '+country, abroad:true, cc};          // "나가노현, 일본"
+    if(reg) return {name:nameOf(reg)+', '+country, abroad:true, cc};    // "나가노현, 일본"
   }
   if(country) return {name:country, abroad, cc};
-  if(c&&dc<250) return {name:c[0]+', '+c[1]+(dc>40?' 인근':''), abroad:true, cc};
+  if(c&&dc<250) return {name:c[0]+', '+cCountry(c)+(dc>40?' 인근':''), abroad:true, cc};
   return {name:lat.toFixed(2)+', '+lon.toFixed(2), abroad:true, cc};
 }
 
@@ -620,7 +627,7 @@ async function render(){
   for(const t of T) for(const c of t.top) ccs.add(ccStrict(c[0],c[1]));
   await ensureRegions(ccs);
   nameTrips(T);
-  const homeCountry=(GEO.world.find(w=>w[2]===HOME_CC)||[])[0];
+  const homeCountry=ccName(HOME_CC);
   $('#tabKr').textContent=homeCountry&&HOME_CC!=='KR'?homeCountry:'국내';
 
   const nAbroad=T.filter(t=>t.abroad).length;
@@ -774,7 +781,7 @@ const BOUNDS={world:[WSEAM,-58,WSEAM+360,84]};
 function worldShift(f){
   if(f.wsh) return f.wsh;
   const sh=[];
-  for(const ring of f[1]){
+  for(const ring of f[RINGS]){
     let lo=1/0,hi=-1/0;
     for(let i=0;i<ring.length;i+=2){if(ring[i]<lo)lo=ring[i]; if(ring[i]>hi)hi=ring[i];}
     sh.push((lo+hi)/2<WSEAM?360:0);
@@ -835,8 +842,8 @@ function draw(){
     for(const f of grp){
       g.fillStyle=visited.has(f)?'#bfdbfe':'#eceff3';
       const sh=wrap?worldShift(f):null;
-      for(let k=0;k<f[1].length;k++){
-        const ring=f[1][k], w=sh?sh[k]:0;
+      for(let k=0;k<f[RINGS].length;k++){
+        const ring=f[RINGS][k], w=sh?sh[k]:0;
         // 링 단위로 이미 옮겼으니 X 의 자동 되돌림이 끼어들지 않게 값을 직접 넣는다
         const px=i=>ox+(ring[i]+w-l)*kx*sc, py=i=>oy+(t-ring[i+1])*sc;
         g.beginPath(); g.moveTo(px(0),py(0));
